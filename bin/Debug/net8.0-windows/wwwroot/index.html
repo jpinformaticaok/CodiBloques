@@ -1,0 +1,2165 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>CodiBloques</title>
+  <script src="https://cdn.jsdelivr.net/npm/blockly@10.4.3/blockly.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/blockly@10.4.3/msg/es.js"></script>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { width:100%; height:100%; overflow:hidden; font-family:"Segoe UI",sans-serif; background:#1e1e2e; }
+    #layout { display:flex; flex-direction:column; width:100%; height:100%; }
+    #fila-principal { display:flex; flex:1; overflow:hidden; }
+    #blocklyDiv { flex:1; height:100%; }
+
+    #panel-escenario {
+      width:380px; min-width:260px; display:flex; flex-direction:column;
+      background:#12122a; border-left:2px solid #333;
+    }
+    #escenario-header {
+      background:#1a5c3a; color:white; font-size:12px; font-weight:600;
+      padding:5px 10px; display:flex; justify-content:space-between; align-items:center;
+    }
+    #escenario { flex:1; display:block; }
+    #escenario-info {
+      background:#0a0a1a; color:#666; font-size:11px; font-family:Consolas,monospace;
+      padding:4px 8px; border-top:1px solid #222;
+    }
+    #sprites-lista {
+      background:#0d0d20; border-top:1px solid #333;
+      padding:5px; display:flex; flex-wrap:wrap; gap:5px; max-height:60px; overflow-y:auto;
+    }
+    .sprite-chip {
+      background:#1a1a3a; border:1px solid #444; border-radius:4px;
+      color:#aaa; font-size:10px; padding:3px 7px; cursor:pointer; user-select:none;
+    }
+    .sprite-chip.activo { border-color:#4C97FF; color:#4C97FF; }
+
+    #panel-consola {
+      height:120px; background:#0d0d1a; border-top:2px solid #333;
+      display:flex; flex-direction:column;
+    }
+    #consola-header {
+      background:#1a1a3a; color:#888; font-size:11px; font-weight:600;
+      padding:4px 10px; display:flex; justify-content:space-between; align-items:center;
+    }
+    #consola-header button {
+      background:transparent; border:1px solid #444; color:#888;
+      font-size:10px; padding:2px 8px; cursor:pointer; border-radius:3px;
+    }
+    #consola-output {
+      flex:1; overflow-y:auto; padding:6px 10px;
+      font-family:Consolas,monospace; font-size:12px; color:#00ff88;
+    }
+    .c-error{color:#ff4444;} .c-info{color:#4488ff;} .c-warn{color:#ffaa00;} .c-ok{color:#00ff88;}
+
+    #dialogo-pregunta {
+      display:none; position:fixed; top:0; left:0; right:0; bottom:0;
+      background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center;
+    }
+    #dialogo-pregunta.visible { display:flex; }
+    #dialogo-inner {
+      background:white; border-radius:10px; padding:20px; width:300px;
+    }
+    #dialogo-inner label { display:block; font-size:14px; color:#333; margin-bottom:10px; }
+    #dialogo-inner input { width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; font-size:14px; }
+    #dialogo-inner button { margin-top:10px; width:100%; padding:8px; background:#4C97FF; color:white; border:none; border-radius:4px; cursor:pointer; font-size:14px; }
+  </style>
+</head>
+<body>
+<div id="layout">
+  <div id="fila-principal">
+    <div id="blocklyDiv"></div>
+    <div id="panel-escenario">
+      <div id="escenario-header">
+        🎮 ESCENARIO
+        <span id="puntuacion-display">Puntos: 0</span>
+      </div>
+      <canvas id="escenario"></canvas>
+      <div id="escenario-info">x: 0  y: 0  dir: 90°</div>
+      <div id="sprites-lista">
+        <div class="sprite-chip activo" onclick="seleccionarSprite('Jugador')">🐶 Jugador</div>
+      </div>
+    </div>
+  </div>
+  <!-- Panel Tutoriales Interactivos -->
+<div id="panel-tutorial" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.75); z-index:9999; align-items:center; justify-content:center;">
+  <div style="background:#1a1a3a; border:2px solid #4C97FF; border-radius:12px; width:520px; max-width:90vw; padding:0; overflow:hidden; box-shadow:0 8px 40px rgba(0,0,0,0.8);">
+
+    <!-- Header -->
+    <div style="background:#0d1535; padding:16px 20px; display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <div id="tut-titulo" style="font-size:16px;font-weight:bold;color:white;">Tutorial</div>
+        <div id="tut-progreso" style="font-size:11px;color:#888;margin-top:2px;">Paso 1 de 5</div>
+      </div>
+      <button onclick="tutorialCerrar()" style="background:transparent;border:none;color:#888;font-size:20px;cursor:pointer;padding:4px 8px;">✕</button>
+    </div>
+
+    <!-- Barra de progreso -->
+    <div style="background:#0a0a20;height:4px;">
+      <div id="tut-barra" style="background:#4C97FF;height:4px;width:20%;transition:width 0.3s;"></div>
+    </div>
+
+    <!-- Contenido -->
+    <div style="padding:24px 20px;">
+      <div id="tut-emoji" style="font-size:48px;text-align:center;margin-bottom:12px;">🎮</div>
+      <div id="tut-texto" style="font-size:14px;color:#ccc;line-height:1.7;text-align:center;margin-bottom:20px;">
+        Bienvenido al tutorial
+      </div>
+      <div id="tut-hint" style="background:#0d2040;border:1px solid #1a4080;border-radius:6px;padding:10px 14px;font-size:12px;color:#88aaff;display:none;margin-bottom:16px;">
+        💡 <span id="tut-hint-texto"></span>
+      </div>
+    </div>
+
+    <!-- Botones -->
+    <div style="padding:0 20px 20px; display:flex; justify-content:space-between; align-items:center;">
+      <button id="tut-btn-anterior" onclick="tutorialAnterior()"
+        style="padding:8px 20px;background:#333;color:#aaa;border:1px solid #555;border-radius:6px;cursor:pointer;font-size:13px;">
+        ← Anterior
+      </button>
+      <div id="tut-puntos" style="display:flex;gap:6px;"></div>
+      <button id="tut-btn-siguiente" onclick="tutorialSiguiente()"
+        style="padding:8px 20px;background:#4C97FF;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:bold;">
+        Siguiente →
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Menú de tutoriales -->
+<div id="menu-tutoriales" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.75); z-index:9998; align-items:center; justify-content:center;">
+  <div style="background:#1a1a3a; border:2px solid #4C97FF; border-radius:12px; width:480px; max-width:90vw; overflow:hidden; box-shadow:0 8px 40px rgba(0,0,0,0.8);">
+    <div style="background:#0d1535; padding:16px 20px; display:flex; justify-content:space-between; align-items:center;">
+      <div style="font-size:16px;font-weight:bold;color:white;">📚 Tutoriales</div>
+      <button onclick="document.getElementById('menu-tutoriales').style.display='none'" style="background:transparent;border:none;color:#888;font-size:20px;cursor:pointer;">✕</button>
+    </div>
+    <div style="padding:16px; display:flex; flex-direction:column; gap:10px;" id="lista-tutoriales"></div>
+  </div>
+</div>
+
+<!-- Panel Grabador de Sonidos -->
+<div id="panel-grabador" style="display:none; position:absolute; bottom:0; left:0; right:0; background:#1a1a2e; border-top:2px solid #CF63CF; z-index:100; flex-direction:column;">
+  <div style="background:#2a1a3a; color:white; font-size:12px; font-weight:600; padding:5px 10px; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+    <span>🎙️ GRABADOR DE SONIDOS</span>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <label style="font-size:11px;color:#aaa;">Nombre:</label>
+      <input id="grab-nombre" type="text" value="MiSonido" style="width:100px;padding:2px 6px;font-size:11px;background:#0d0d20;color:white;border:1px solid #444;border-radius:3px;" />
+      <button onclick="grabadorGuardar()" style="padding:3px 8px;font-size:11px;background:#1a5c3a;color:white;border:1px solid #2a8a5a;border-radius:3px;cursor:pointer;">✓ Guardar sonido</button>
+      <button onclick="grabadorCerrar()" style="padding:3px 8px;font-size:11px;background:#5c1a1a;color:white;border:1px solid #8a2a2a;border-radius:3px;cursor:pointer;">✕ Cerrar</button>
+    </div>
+  </div>
+  <div style="display:flex;flex:1;gap:16px;padding:12px;min-height:220px;align-items:flex-start;">
+
+    <!-- Columna izquierda: controles de grabación -->
+    <div style="display:flex;flex-direction:column;gap:10px;min-width:200px;">
+      <div style="font-size:11px;color:#888;">Grabar desde micrófono:</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button id="btn-grabar" onclick="grabadorIniciar()" style="padding:8px 16px;font-size:13px;background:#cc3333;color:white;border:none;border-radius:6px;cursor:pointer;font-weight:bold;">⏺ Grabar</button>
+        <button id="btn-parar-grab" onclick="grabadorDetener()" disabled style="padding:8px 16px;font-size:13px;background:#555;color:white;border:none;border-radius:6px;cursor:pointer;">⏹ Detener</button>
+      </div>
+      <div id="grab-estado" style="font-size:11px;color:#888;">Listo para grabar</div>
+      <div id="grab-tiempo" style="font-size:22px;font-weight:bold;color:#CF63CF;font-family:Consolas;">00:00</div>
+
+      <div style="height:1px;background:#333;margin:4px 0;"></div>
+      <div style="font-size:11px;color:#888;">Importar archivo de audio:</div>
+      <label style="padding:6px 12px;font-size:11px;background:#1a2a4a;color:#aaa;border:1px solid #334;border-radius:4px;cursor:pointer;text-align:center;">
+        📂 Elegir MP3 / WAV
+        <input type="file" accept="audio/*" style="display:none;" onchange="grabadorImportar(this)" />
+      </label>
+      <div id="grab-archivo" style="font-size:10px;color:#666;"></div>
+    </div>
+
+    <!-- Columna central: forma de onda + reproductor -->
+    <div style="flex:1;display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:11px;color:#888;">Vista previa:</div>
+      <canvas id="grab-canvas" width="400" height="80"
+        style="background:#0a0a1a;border:1px solid #333;border-radius:4px;width:100%;height:80px;"></canvas>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <button id="btn-reproducir" onclick="grabadorReproducir()" disabled
+          style="padding:6px 14px;font-size:12px;background:#1a3a5a;color:white;border:1px solid #2a5a8a;border-radius:4px;cursor:pointer;">▶ Reproducir</button>
+        <button id="btn-parar-rep" onclick="grabadorPararReproduccion()" disabled
+          style="padding:6px 14px;font-size:12px;background:#333;color:white;border:1px solid #555;border-radius:4px;cursor:pointer;">⏹ Parar</button>
+        <span id="grab-duracion" style="font-size:11px;color:#888;"></span>
+      </div>
+      <audio id="grab-audio" style="display:none;"></audio>
+    </div>
+
+    <!-- Columna derecha: lista de sonidos guardados -->
+    <div style="width:180px;display:flex;flex-direction:column;gap:6px;">
+      <div style="font-size:11px;color:#888;">Mis sonidos:</div>
+      <div id="grab-lista" style="display:flex;flex-direction:column;gap:4px;overflow-y:auto;max-height:160px;"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Pestaña Editor de Disfraces (oculta por defecto, se muestra desde C#) -->
+<div id="panel-editor" style="display:none; position:absolute; bottom:0; left:0; right:0; background:#1a1a2e; border-top:2px solid #4C97FF; z-index:100; flex-direction:column;" >
+  <div id="editor-header" style="background:#1a2a4a; color:white; font-size:12px; font-weight:600; padding:5px 10px; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+    <span>🎨 EDITOR DE DISFRACES</span>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <label style="font-size:11px;color:#aaa;">Nombre:</label>
+      <input id="editor-nombre" type="text" value="MiDisfraz" style="width:100px;padding:2px 6px;font-size:11px;background:#0d0d20;color:white;border:1px solid #444;border-radius:3px;" />
+      <label style="font-size:11px;color:#aaa;">Tamaño:</label>
+      <select id="editor-tamano" style="padding:2px;font-size:11px;background:#0d0d20;color:white;border:1px solid #444;border-radius:3px;">
+        <option value="64">64×64</option>
+        <option value="96" selected>96×96</option>
+        <option value="128">128×128</option>
+      </select>
+      <button onclick="editorNuevo()" style="padding:3px 8px;font-size:11px;background:#333;color:white;border:1px solid #555;border-radius:3px;cursor:pointer;">Nuevo</button>
+      <button onclick="editorGuardar()" style="padding:3px 8px;font-size:11px;background:#1a5c3a;color:white;border:1px solid #2a8a5a;border-radius:3px;cursor:pointer;">✓ Guardar disfraz</button>
+      <button onclick="editorCerrar()" style="padding:3px 8px;font-size:11px;background:#5c1a1a;color:white;border:1px solid #8a2a2a;border-radius:3px;cursor:pointer;">✕ Cerrar</button>
+    </div>
+  </div>
+  <div style="display:flex;flex:1;overflow:hidden;min-height:280px;">
+    <!-- Herramientas -->
+    <div id="editor-tools" style="width:52px;background:#111;display:flex;flex-direction:column;align-items:center;padding:6px 4px;gap:4px;border-right:1px solid #333;">
+      <button class="etool active" id="tool-pincel"    onclick="setTool('pincel')"    title="Pincel">✏️</button>
+      <button class="etool"        id="tool-linea"     onclick="setTool('linea')"     title="Línea">╱</button>
+      <button class="etool"        id="tool-rect"      onclick="setTool('rect')"      title="Rectángulo">▭</button>
+      <button class="etool"        id="tool-circulo"   onclick="setTool('circulo')"   title="Círculo">○</button>
+      <button class="etool"        id="tool-relleno"   onclick="setTool('relleno')"   title="Relleno">🪣</button>
+      <button class="etool"        id="tool-borrador"  onclick="setTool('borrador')"  title="Borrador">◻</button>
+      <button class="etool"        id="tool-texto"     onclick="setTool('texto')"     title="Texto">T</button>
+      <div style="height:1px;background:#333;width:40px;margin:2px 0;"></div>
+      <input id="editor-color" type="color" value="#4C97FF" title="Color" style="width:34px;height:30px;border:none;border-radius:4px;cursor:pointer;background:none;padding:2px;" />
+      <div style="height:1px;background:#333;width:40px;margin:2px 0;"></div>
+      <label style="font-size:9px;color:#888;">Grosor</label>
+      <input id="editor-grosor" type="range" min="1" max="20" value="3" style="width:40px;writing-mode:vertical-lr;height:60px;" />
+      <span id="editor-grosor-val" style="font-size:10px;color:#aaa;">3</span>
+      <div style="height:1px;background:#333;width:40px;margin:2px 0;"></div>
+      <button onclick="editorDeshacer()" title="Deshacer (Ctrl+Z)" style="padding:3px;font-size:16px;background:transparent;border:none;cursor:pointer;color:#aaa;">↩</button>
+      <button onclick="editorRehacer()" title="Rehacer (Ctrl+Y)" style="padding:3px;font-size:16px;background:transparent;border:none;cursor:pointer;color:#aaa;">↪</button>
+      <div style="height:1px;background:#333;width:40px;margin:2px 0;"></div>
+      <label for="editor-img-input" title="Importar PNG" style="cursor:pointer;font-size:18px;color:#aaa;" >🖼</label>
+      <input id="editor-img-input" type="file" accept="image/png,image/jpeg,image/gif" style="display:none;" onchange="editorImportarImagen(this)" />
+    </div>
+    <!-- Canvas principal -->
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;background:#222;overflow:auto;position:relative;">
+      <canvas id="editor-canvas" width="96" height="96"
+        style="image-rendering:pixelated;cursor:crosshair;border:1px solid #555;box-shadow:0 0 0 1px #333;"
+        onmousedown="editorMouseDown(event)" onmousemove="editorMouseMove(event)"
+        onmouseup="editorMouseUp(event)" onmouseleave="editorMouseUp(event)">
+      </canvas>
+    </div>
+    <!-- Preview + lista disfraces personalizados -->
+    <div style="width:160px;background:#111;border-left:1px solid #333;padding:8px;display:flex;flex-direction:column;gap:8px;">
+      <div style="font-size:11px;color:#888;">Vista previa:</div>
+      <canvas id="editor-preview" width="64" height="64"
+        style="image-rendering:pixelated;border:1px solid #444;border-radius:4px;background:#1a1a2e;"></canvas>
+      <div style="font-size:11px;color:#888;margin-top:4px;">Mis disfraces:</div>
+      <div id="editor-lista" style="display:flex;flex-wrap:wrap;gap:4px;overflow-y:auto;max-height:140px;"></div>
+      <div style="font-size:11px;color:#888;margin-top:4px;">Texto (si herramienta T):</div>
+      <input id="editor-texto-input" type="text" value="Hola" style="width:100%;padding:3px 6px;font-size:11px;background:#0d0d20;color:white;border:1px solid #444;border-radius:3px;" />
+    </div>
+  </div>
+</div>
+
+<style>
+.etool{width:38px;height:32px;background:#1a1a3a;border:1px solid #333;border-radius:4px;cursor:pointer;color:white;font-size:14px;display:flex;align-items:center;justify-content:center;}
+.etool:hover{background:#2a2a5a;}
+.etool.active{background:#4C97FF;border-color:#6ab0ff;}
+</style>
+
+<div id="panel-consola">
+    <div id="consola-header">
+      <span>💬 CONSOLA</span>
+      <button onclick="limpiarConsola()">Limpiar</button>
+    </div>
+    <div id="consola-output"></div>
+  </div>
+</div>
+
+<div id="dialogo-pregunta">
+  <div id="dialogo-inner">
+    <label id="dialogo-texto">¿Cuál es tu nombre?</label>
+    <input id="dialogo-input" type="text" placeholder="Tu respuesta..." />
+    <button onclick="responderDialogo()">OK</button>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// FONDOS
+// ══════════════════════════════════════════════════════════
+const FONDOS = [
+  { nombre:'Espacio',    fn:(ctx,W,H) => { const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#000010'); g.addColorStop(1,'#001030'); ctx.fillStyle=g; ctx.fillRect(0,0,W,H); for(let i=0;i<80;i++){ctx.fillStyle=`rgba(255,255,255,${Math.random()*0.8+0.2})`; ctx.beginPath(); ctx.arc(Math.random()*W,Math.random()*H,Math.random()*1.5,0,Math.PI*2); ctx.fill();} } },
+  { nombre:'Naturaleza', fn:(ctx,W,H) => { const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#87CEEB'); g.addColorStop(0.6,'#87CEEB'); g.addColorStop(0.6,'#228B22'); g.addColorStop(1,'#155015'); ctx.fillStyle=g; ctx.fillRect(0,0,W,H); ctx.fillStyle='white'; ctx.beginPath(); ctx.ellipse(W*0.3,H*0.15,60,30,0,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(W*0.7,H*0.2,80,35,0,0,Math.PI*2); ctx.fill(); } },
+  { nombre:'Ciudad',     fn:(ctx,W,H) => { ctx.fillStyle='#1a1a2e'; ctx.fillRect(0,0,W,H); ctx.fillStyle='#2a2a4e'; for(let i=0;i<8;i++){const bw=30+Math.random()*40, bh=60+Math.random()*100, bx=i*(W/8); ctx.fillRect(bx,H-bh,bw,bh); for(let r=0;r<5;r++) for(let c=0;c<3;c++) if(Math.random()>0.4){ctx.fillStyle='rgba(255,255,150,0.8)'; ctx.fillRect(bx+5+c*10,H-bh+10+r*18,6,8);} ctx.fillStyle='#2a2a4e';} } },
+  { nombre:'Mar',        fn:(ctx,W,H) => { const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#87CEEB'); g.addColorStop(0.45,'#87CEEB'); g.addColorStop(0.45,'#1E90FF'); g.addColorStop(1,'#00008B'); ctx.fillStyle=g; ctx.fillRect(0,0,W,H); ctx.strokeStyle='rgba(255,255,255,0.3)'; ctx.lineWidth=2; for(let i=0;i<5;i++){ctx.beginPath(); ctx.moveTo(0,H*0.45+i*15); ctx.quadraticCurveTo(W/2,H*0.45+i*15-10,W,H*0.45+i*15); ctx.stroke();} } },
+  { nombre:'Desierto',   fn:(ctx,W,H) => { const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#FF7043'); g.addColorStop(0.5,'#FFAB40'); g.addColorStop(0.5,'#DEB887'); g.addColorStop(1,'#D2691E'); ctx.fillStyle=g; ctx.fillRect(0,0,W,H); ctx.fillStyle='#C4A35A'; ctx.beginPath(); ctx.ellipse(W*0.2,H*0.55,20,40,0,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(W*0.7,H*0.52,15,35,0,0,Math.PI*2); ctx.fill(); } },
+  { nombre:'Aula',       fn:(ctx,W,H) => {
+    ctx.fillStyle='#F5F0E8'; ctx.fillRect(0,0,W,H);
+    // Piso
+    ctx.fillStyle='#D2B48C'; ctx.fillRect(0,H*0.75,W,H*0.25);
+    // Pizarrón
+    ctx.fillStyle='#2F4F2F'; ctx.fillRect(W*0.1,H*0.05,W*0.8,H*0.35);
+    ctx.strokeStyle='#8FBC8F'; ctx.lineWidth=2;
+    ctx.strokeRect(W*0.1,H*0.05,W*0.8,H*0.35);
+    // Texto en pizarrón
+    ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.font=`${W*0.03}px Consolas`;
+    ctx.fillText('CodiBloques',W*0.3,H*0.18);
+    // Ventana
+    ctx.fillStyle='#87CEEB'; ctx.fillRect(W*0.75,H*0.08,W*0.18,H*0.25);
+    ctx.strokeStyle='#888'; ctx.lineWidth=3; ctx.strokeRect(W*0.75,H*0.08,W*0.18,H*0.25);
+    ctx.beginPath(); ctx.moveTo(W*0.84,H*0.08); ctx.lineTo(W*0.84,H*0.33); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(W*0.75,H*0.2); ctx.lineTo(W*0.93,H*0.2); ctx.stroke();
+    // Escritorios
+    for(let i=0;i<3;i++){ctx.fillStyle='#8B6914'; ctx.fillRect(W*(0.1+i*0.28),H*0.78,W*0.22,H*0.05); ctx.fillStyle='#654321'; ctx.fillRect(W*(0.12+i*0.28),H*0.83,W*0.04,H*0.1); ctx.fillRect(W*(0.26+i*0.28),H*0.83,W*0.04,H*0.1);}
+  }},
+  { nombre:'Plataformas', fn:(ctx,W,H) => {
+    // Cielo
+    const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#1a1a3e'); g.addColorStop(1,'#2d2d6e');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    // Estrellas
+    ctx.fillStyle='white';
+    for(let i=0;i<30;i++){ctx.beginPath();ctx.arc(Math.sin(i*47)*W/2+W/2,Math.cos(i*31)*H/3+H/4,1,0,Math.PI*2);ctx.fill();}
+    // Plataformas
+    const plats=[[0,H*0.85,W,20],[W*0.1,H*0.65,W*0.2,16],[W*0.4,H*0.55,W*0.2,16],[W*0.65,H*0.45,W*0.25,16],[W*0.05,H*0.38,W*0.18,16],[W*0.35,H*0.28,W*0.15,16]];
+    plats.forEach(([x,y,w,h])=>{
+      const pg=ctx.createLinearGradient(x,y,x,y+h+8);
+      pg.addColorStop(0,'#5cb85c'); pg.addColorStop(0.4,'#4a9a4a'); pg.addColorStop(0.4,'#8B4513'); pg.addColorStop(1,'#6B3410');
+      ctx.fillStyle=pg; ctx.beginPath(); ctx.roundRect(x,y,w,h+8,4); ctx.fill();
+    });
+    // Monedas decorativas
+    ctx.fillStyle='#FFD700';
+    [[W*0.22,H*0.6],[W*0.52,H*0.5],[W*0.75,H*0.4]].forEach(([cx,cy])=>{ctx.beginPath();ctx.arc(cx,cy,6,0,Math.PI*2);ctx.fill();});
+  }},
+  { nombre:'Laberinto',  fn:(ctx,W,H) => {
+    ctx.fillStyle='#1a1a1a'; ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle='#4488ff'; ctx.lineWidth=8; ctx.lineCap='square';
+    const cw=W/10, ch=H/8;
+    // Paredes horizontales
+    const ph=[[0,0,8],[0,1,3],[4,1,6],[2,2,5],[6,2,9],[1,3,4],[5,3,8],[0,4,3],[4,4,7],[2,5,5],[6,5,10],[1,6,4],[5,6,8],[0,7,10]];
+    ph.forEach(([c,r,e])=>{ctx.beginPath();ctx.moveTo(c*cw,r*ch);ctx.lineTo(e*cw,r*ch);ctx.stroke();});
+    // Paredes verticales
+    const pv=[[0,0,8],[10,0,8],[3,0,3],[7,1,3],[1,2,4],[5,2,4],[9,3,5],[2,4,6],[6,5,7],[4,6,8]];
+    pv.forEach(([c,r,e])=>{ctx.beginPath();ctx.moveTo(c*cw,r*ch);ctx.lineTo(c*cw,e*ch);ctx.stroke();});
+    // Entrada y salida
+    ctx.strokeStyle='#00ff88'; ctx.lineWidth=4;
+    ctx.beginPath();ctx.moveTo(0,H*0.1);ctx.lineTo(0,H*0.25);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(W,H*0.75);ctx.lineTo(W,H*0.9);ctx.stroke();
+  }},
+  { nombre:'Negro',      fn:(ctx,W,H) => { ctx.fillStyle='#000000'; ctx.fillRect(0,0,W,H); } },
+  { nombre:'Color',      fn:(ctx,W,H) => { ctx.fillStyle=_fondoColor||'#ffffff'; ctx.fillRect(0,0,W,H); } },
+];
+let _fondoColor = '#3a7bd5';
+let _fondoActual = 0;
+
+// ══════════════════════════════════════════════════════════
+// DISFRACES
+// ══════════════════════════════════════════════════════════
+const DISFRACES = {
+  // Formas básicas
+  perrito:   { nombre:'Perrito',        fn:(ctx,c)=>dibujarPerrito(ctx,c) },
+  cuadrado:  { nombre:'Cuadrado',       fn:(ctx,c)=>dibujarCuadrado(ctx,c) },
+  circulo:   { nombre:'Círculo',        fn:(ctx,c)=>dibujarCirculo(ctx,c) },
+  triangulo: { nombre:'Triángulo',      fn:(ctx,c)=>dibujarTriangulo(ctx,c) },
+  estrella:  { nombre:'Estrella',       fn:(ctx,c)=>dibujarEstrella(ctx,c) },
+  // Animales
+  gato:      { nombre:'Gato',           fn:(ctx,c)=>dibujarGato(ctx,c) },
+  pajaro:    { nombre:'Pájaro',         fn:(ctx,c)=>dibujarPajaro(ctx,c) },
+  pez:       { nombre:'Pez',            fn:(ctx,c)=>dibujarPez(ctx,c) },
+  mariposa:  { nombre:'Mariposa',       fn:(ctx,c)=>dibujarMariposa(ctx,c) },
+  // Vehículos
+  auto:      { nombre:'Auto',           fn:(ctx,c)=>dibujarAuto(ctx,c) },
+  cohete:    { nombre:'Cohete',         fn:(ctx,c)=>dibujarCohete(ctx,c) },
+  barco:     { nombre:'Barco',          fn:(ctx,c)=>dibujarBarco(ctx,c) },
+  // Personajes
+  robot:     { nombre:'Robot',          fn:(ctx,c)=>dibujarRobot(ctx,c) },
+  fantasma:  { nombre:'Fantasma',       fn:(ctx,c)=>dibujarFantasma(ctx,c) },
+  monstruo:  { nombre:'Monstruo',       fn:(ctx,c)=>dibujarMonstruo(ctx,c) },
+  // Objetos
+  pelota:    { nombre:'Pelota',         fn:(ctx,c)=>dibujarPelota(ctx,c) },
+  moneda:    { nombre:'Moneda',         fn:(ctx,c)=>dibujarMoneda(ctx,c) },
+  bomba:     { nombre:'Bomba',          fn:(ctx,c)=>dibujarBomba(ctx,c) },
+  estfugaz:  { nombre:'Estrella fugaz', fn:(ctx,c)=>dibujarEstrellaFugaz(ctx,c) },
+};
+
+// ══════════════════════════════════════════════════════════
+// SPRITES
+// ══════════════════════════════════════════════════════════
+const COLORES_SPRITE = ['#C8A882','#4C97FF','#FF8C1A','#59C059','#FF6680','#CF63CF'];
+
+class Sprite {
+  constructor(nombre, color, disfraz) {
+    this.nombre   = nombre;
+    this.color    = color   || '#C8A882';
+    this.disfraz  = disfraz || 'perrito';
+    this.x        = 0; this.y = 0; this.dir = 90;
+    this.visible  = true; this.size = 100;
+    this.texto    = ''; this.tipoTxt = 'decir';
+    this.capa     = 0;
+    this.esClon   = false;
+    this._txtTimer = null;
+  }
+
+  _upd() { dibujarEscenario(); }
+
+  decir(msg) {
+    this.texto=String(msg); this.tipoTxt='decir';
+    if(this._txtTimer) clearTimeout(this._txtTimer);
+    this._txtTimer = setTimeout(()=>{ this.texto=''; this._upd(); }, 3000);
+    escribirConsola(`[${this.nombre}] ${msg}`); this._upd();
+  }
+  async decirPorSegundos(msg,s) {
+    this.texto=String(msg); this.tipoTxt='decir'; escribirConsola(`[${this.nombre}] ${msg}`); this._upd();
+    await _esperar(s); this.texto=''; this._upd();
+  }
+  pensar(msg) {
+    this.texto=String(msg); this.tipoTxt='pensar';
+    if(this._txtTimer) clearTimeout(this._txtTimer);
+    this._txtTimer = setTimeout(()=>{ this.texto=''; this._upd(); }, 3000);
+    this._upd();
+  }
+  mover(p) {
+    this.x += p*Math.cos((this.dir-90)*Math.PI/180);
+    this.y += p*Math.sin((this.dir-90)*Math.PI/180); this._upd();
+  }
+  girar(g)         { this.dir=(this.dir+g)%360; this._upd(); }
+  irA(x,y)         { this.x=x; this.y=y; this._upd(); }
+  irAlAzar()       { this.x=(Math.random()-0.5)*(canvas.width-60); this.y=(Math.random()-0.5)*(canvas.height-60); this._upd(); }
+  irAlMouse()      { this.x=_ratonX; this.y=_ratonY; this._upd(); }
+  irASprite(n)     { const s=_sprites[n]; if(s){this.x=s.x; this.y=s.y;} this._upd(); }
+  fijarX(x)        { this.x=x; this._upd(); }
+  fijarY(y)        { this.y=y; this._upd(); }
+  cambiarX(d)      { this.x+=d; this._upd(); }
+  cambiarY(d)      { this.y+=d; this._upd(); }
+  apuntarA(ang)    { this.dir=ang; this._upd(); }
+  apuntarAlMouse() {
+    const dx=_ratonX-this.x, dy=this.y-_ratonY;
+    this.dir = (Math.atan2(dx,dy)*180/Math.PI+360)%360; this._upd();
+  }
+  mostrar()        { this.visible=true;  this._upd(); }
+  esconder()       { this.visible=false; this._upd(); }
+  fijarTamanio(s)  { this.size=s; this._upd(); }
+  cambiarTamanio(d){ this.size=Math.max(10,this.size+d); this._upd(); }
+  fijarColor(c)    { this.color=c; this._upd(); }
+  fijarDisfraz(d)  { if(DISFRACES[d]) this.disfraz=d; this._upd(); }
+  disfrazSiguiente(){
+    const lista = Object.keys(DISFRACES);
+    const idx = lista.indexOf(this.disfraz);
+    this.disfraz = lista[(idx+1)%lista.length]; this._upd();
+  }
+  fijarCapa(n)     { this.capa=n; this._upd(); }
+  rebotar() {
+    const W=canvas.width, H=canvas.height;
+    const cx=W/2, cy=H/2;
+    let reboto=false;
+    if(this.x+cx<20||this.x+cx>W-20){ this.dir=180-this.dir; reboto=true; }
+    if(-this.y+cy<20||-this.y+cy>H-20){ this.dir=-this.dir; reboto=true; }
+    if(reboto) this._upd();
+  }
+  tocandoBorde() {
+    const W=canvas.width,H=canvas.height,cx=W/2,cy=H/2;
+    return this.x+cx<20||this.x+cx>W-20||-this.y+cy<20||-this.y+cy>H-20;
+  }
+  tocandoMouse()   { return Math.sqrt((this.x-_ratonX)**2+(this.y-_ratonY)**2) < 30*(this.size/100); }
+  tocandoSprite(n) {
+    const o=_sprites[n]; if(!o||!o.visible) return false;
+    const r1=25*(this.size/100), r2=25*(o.size/100);
+    return Math.sqrt((this.x-o.x)**2+(this.y-o.y)**2) < r1+r2;
+  }
+  tocandoColor(color) {
+    // Detección simplificada por área del canvas
+    const cx=canvas.width/2, cy=canvas.height/2;
+    const px=Math.round(this.x+cx), py=Math.round(-this.y+cy);
+    try {
+      const px2=Math.max(0,Math.min(canvas.width-1,px));
+      const py2=Math.max(0,Math.min(canvas.height-1,py));
+      const d=ctx.getImageData(px2,py2,1,1).data;
+      const hex=`#${d[0].toString(16).padStart(2,'0')}${d[1].toString(16).padStart(2,'0')}${d[2].toString(16).padStart(2,'0')}`;
+      return hex.toLowerCase()===color.toLowerCase();
+    } catch { return false; }
+  }
+  distanciaA(n) { const o=_sprites[n]; if(!o) return 0; return Math.sqrt((this.x-o.x)**2+(this.y-o.y)**2); }
+}
+
+const _sprites = { 'Jugador': new Sprite('Jugador','#C8A882','perrito') };
+let _spriteActivo = 'Jugador';
+const _sp = () => _sprites[_spriteActivo] || _sprites['Jugador'];
+
+function seleccionarSprite(nombre) {
+  _spriteActivo = nombre;
+  document.querySelectorAll('.sprite-chip').forEach(c => {
+    c.classList.toggle('activo', c.textContent.includes(nombre));
+  });
+}
+
+function agregarSpriteUI(nombre, disfraz) {
+  const iconos = { perrito:'🐶', cuadrado:'🟦', circulo:'🔴', triangulo:'🔺', estrella:'⭐' };
+  const chip = document.createElement('div');
+  chip.className = 'sprite-chip';
+  chip.textContent = `${iconos[disfraz]||'⭐'} ${nombre}`;
+  chip.onclick = () => seleccionarSprite(nombre);
+  document.getElementById('sprites-lista').appendChild(chip);
+}
+
+// ══════════════════════════════════════════════════════════
+// CANVAS Y DIBUJO
+// ══════════════════════════════════════════════════════════
+const canvas = document.getElementById('escenario');
+const ctx    = canvas.getContext('2d');
+const infoEl = document.getElementById('escenario-info');
+
+function redimensionarCanvas() {
+  const panel  = document.getElementById('panel-escenario');
+  const header = document.getElementById('escenario-header');
+  const info   = document.getElementById('escenario-info');
+  const lista  = document.getElementById('sprites-lista');
+  canvas.width  = panel.clientWidth;
+  canvas.height = panel.clientHeight - header.offsetHeight - info.offsetHeight - lista.offsetHeight;
+  dibujarEscenario();
+}
+
+function dibujarEscenario() {
+  const W=canvas.width||300, H=canvas.height||300;
+  ctx.clearRect(0,0,W,H);
+
+  // Fondo
+  if(FONDOS[_fondoActual]) {
+    FONDOS[_fondoActual].fn(ctx, W, H);
+  } else {
+    ctx.fillStyle='#12122a'; ctx.fillRect(0,0,W,H);
+  }
+
+  // Cuadrícula sutil
+  const cx=W/2, cy=H/2;
+  ctx.strokeStyle='rgba(255,255,255,0.04)'; ctx.lineWidth=1;
+  for(let x=cx%30;x<W;x+=30){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=cy%30;y<H;y+=30){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(cx,0);ctx.lineTo(cx,H);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(0,cy);ctx.lineTo(W,cy);ctx.stroke();
+
+  // Ordenar sprites por capa
+  const spriteOrden = Object.values(_sprites).sort((a,b)=>a.capa-b.capa);
+
+  for(const sp of spriteOrden) {
+    if(!sp.visible) continue;
+    const px=cx+sp.x, py=cy-sp.y, sc=sp.size/100;
+    ctx.save();
+    ctx.translate(px,py);
+    ctx.rotate((sp.dir-90)*Math.PI/180);
+    ctx.scale(sc,sc);
+    const dfn = DISFRACES[sp.disfraz];
+    if(dfn) dfn.fn(ctx, sp.color);
+    ctx.restore();
+
+    // Burbuja
+    if(sp.texto) {
+      ctx.font='12px "Segoe UI"';
+      const tw=ctx.measureText(sp.texto).width;
+      const bw=Math.max(70,tw+20), bh=28, bx=px+30, by=py-55;
+      ctx.fillStyle=sp.tipoTxt==='pensar'?'#e0e0ff':'#ffffff';
+      ctx.strokeStyle='#aaa'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.roundRect(bx,by-bh,bw,bh,6); ctx.fill(); ctx.stroke();
+      ctx.fillStyle='#333'; ctx.fillText(sp.texto,bx+10,by-8);
+    }
+
+    // Nombre
+    ctx.font='10px "Segoe UI"'; ctx.fillStyle='rgba(255,255,255,0.5)'; ctx.textAlign='center';
+    ctx.fillText(sp.nombre, cx+sp.x, cy-sp.y+40*(sp.size/100));
+    ctx.textAlign='left';
+  }
+
+  const sa=_sprites[_spriteActivo];
+  if(sa) infoEl.textContent=`x: ${Math.round(sa.x)}  y: ${Math.round(sa.y)}  dir: ${Math.round(sa.dir)}°  disfraz: ${sa.disfraz}`;
+}
+
+// ── Figuras ───────────────────────────────────────────────
+function ajustarBrillo(hex,val) {
+  try{let r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  return `rgb(${Math.max(0,Math.min(255,r+val))},${Math.max(0,Math.min(255,g+val))},${Math.max(0,Math.min(255,b+val))})`;
+  }catch{return hex;}
+}
+
+function dibujarPerrito(ctx,color) {
+  color=color||'#C8A882'; const c2=ajustarBrillo(color,-30);
+  ctx.strokeStyle=c2;ctx.lineWidth=7;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(18,8);ctx.quadraticCurveTo(34,-2,30,-14);ctx.stroke();
+  ctx.fillStyle=color;
+  ctx.beginPath();ctx.ellipse(0,8,22,26,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.roundRect(-18,20,13,24,4);ctx.fill();
+  ctx.beginPath();ctx.roundRect(5,20,13,24,4);ctx.fill();
+  ctx.fillStyle=c2;
+  ctx.beginPath();ctx.ellipse(-12,45,8,5,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(12,45,8,5,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=color;ctx.beginPath();ctx.ellipse(0,-12,16,13,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=ajustarBrillo(color,20);ctx.beginPath();ctx.roundRect(-22,-42,44,32,[7,7,5,5]);ctx.fill();
+  ctx.fillStyle=c2;
+  ctx.beginPath();ctx.moveTo(-22,-40);ctx.lineTo(-30,-55);ctx.lineTo(-16,-44);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(22,-40);ctx.lineTo(30,-55);ctx.lineTo(16,-44);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#E8CFA8';ctx.beginPath();ctx.ellipse(0,-22,15,11,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#2a1a0a';ctx.beginPath();ctx.ellipse(0,-30,9,6,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#1a0a00';
+  ctx.beginPath();ctx.ellipse(-4,-30,3,2.5,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(4,-30,3,2.5,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#2a1a0a';
+  ctx.beginPath();ctx.ellipse(-9,-36,4.5,4.5,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(9,-36,4.5,4.5,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='white';
+  ctx.beginPath();ctx.arc(-7,-38,1.5,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(11,-38,1.5,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#8a6a4a';ctx.lineWidth=2.5;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(-15,-42);ctx.lineTo(-4,-40);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(15,-42);ctx.lineTo(4,-40);ctx.stroke();
+  ctx.strokeStyle='#3a2a1a';ctx.lineWidth=1.8;
+  ctx.beginPath();ctx.moveTo(-7,-18);ctx.quadraticCurveTo(0,-13,7,-18);ctx.stroke();
+}
+
+function dibujarCuadrado(ctx,color) {
+  ctx.fillStyle=color||'#4C97FF'; ctx.strokeStyle=ajustarBrillo(color||'#4C97FF',-40); ctx.lineWidth=3;
+  ctx.beginPath();ctx.roundRect(-25,-25,50,50,6);ctx.fill();ctx.stroke();
+}
+
+function dibujarCirculo(ctx,color) {
+  ctx.fillStyle=color||'#FF8C1A'; ctx.strokeStyle=ajustarBrillo(color||'#FF8C1A',-40); ctx.lineWidth=3;
+  ctx.beginPath();ctx.arc(0,0,28,0,Math.PI*2);ctx.fill();ctx.stroke();
+}
+
+function dibujarTriangulo(ctx,color) {
+  ctx.fillStyle=color||'#59C059'; ctx.strokeStyle=ajustarBrillo(color||'#59C059',-40); ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(0,-30);ctx.lineTo(26,20);ctx.lineTo(-26,20);ctx.closePath();ctx.fill();ctx.stroke();
+}
+
+function dibujarEstrella(ctx,color) {
+  ctx.fillStyle=color||'#FFAB19'; ctx.strokeStyle=ajustarBrillo(color||'#FFAB19',-40); ctx.lineWidth=2;
+  ctx.beginPath();
+  for(let i=0;i<10;i++){
+    const r=i%2===0?28:12, ang=(i*36-90)*Math.PI/180;
+    i===0?ctx.moveTo(r*Math.cos(ang),r*Math.sin(ang)):ctx.lineTo(r*Math.cos(ang),r*Math.sin(ang));
+  }
+  ctx.closePath();ctx.fill();ctx.stroke();
+}
+
+// ══════════════════════════════════════════════════════════
+// CONSOLA
+// ══════════════════════════════════════════════════════════
+
+// ── Animales ─────────────────────────────────────────────────────────────────
+function dibujarGato(ctx,color){
+  color=color||'#888888';const c2=ajustarBrillo(color,-30);
+  ctx.strokeStyle=c2;ctx.lineWidth=5;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(20,10);ctx.quadraticCurveTo(38,0,32,-15);ctx.stroke();
+  ctx.fillStyle=color;ctx.beginPath();ctx.ellipse(0,8,20,24,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=ajustarBrillo(color,15);ctx.beginPath();ctx.arc(0,-20,16,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=color;
+  ctx.beginPath();ctx.moveTo(-14,-30);ctx.lineTo(-8,-14);ctx.lineTo(-20,-14);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(14,-30);ctx.lineTo(8,-14);ctx.lineTo(20,-14);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#ffaaaa';
+  ctx.beginPath();ctx.moveTo(-13,-28);ctx.lineTo(-9,-16);ctx.lineTo(-17,-16);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(13,-28);ctx.lineTo(9,-16);ctx.lineTo(17,-16);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#222';ctx.beginPath();ctx.ellipse(-6,-21,3,4,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(6,-21,3,4,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#88ff44';ctx.beginPath();ctx.ellipse(-6,-21,1.5,3,0,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(6,-21,1.5,3,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#ffaaaa';ctx.beginPath();ctx.moveTo(0,-15);ctx.lineTo(-3,-12);ctx.lineTo(3,-12);ctx.closePath();ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.8)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(-4,-13);ctx.lineTo(-18,-11);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(-4,-13);ctx.lineTo(-18,-15);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(4,-13);ctx.lineTo(18,-11);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(4,-13);ctx.lineTo(18,-15);ctx.stroke();
+  ctx.fillStyle=color;
+  ctx.beginPath();ctx.roundRect(-16,20,12,22,4);ctx.fill();
+  ctx.beginPath();ctx.roundRect(4,20,12,22,4);ctx.fill();
+}
+function dibujarPajaro(ctx,color){
+  color=color||'#FF8C1A';const c2=ajustarBrillo(color,-30);
+  ctx.fillStyle=color;ctx.beginPath();ctx.ellipse(0,5,18,14,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=ajustarBrillo(color,20);ctx.beginPath();ctx.arc(-8,-10,12,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='white';ctx.beginPath();ctx.arc(-11,-12,4,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#222';ctx.beginPath();ctx.arc(-10,-12,2.5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='white';ctx.beginPath();ctx.arc(-9,-13,1,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#FFC107';ctx.beginPath();ctx.moveTo(-20,-10);ctx.lineTo(-26,-8);ctx.lineTo(-20,-6);ctx.closePath();ctx.fill();
+  ctx.fillStyle=c2;ctx.beginPath();ctx.moveTo(5,-2);ctx.quadraticCurveTo(22,-15,18,8);ctx.quadraticCurveTo(10,12,5,8);ctx.closePath();ctx.fill();
+  ctx.strokeStyle='#FFC107';ctx.lineWidth=2;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(-4,18);ctx.lineTo(-6,28);ctx.moveTo(-6,28);ctx.lineTo(-10,32);ctx.moveTo(-6,28);ctx.lineTo(-2,32);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(4,18);ctx.lineTo(2,28);ctx.moveTo(2,28);ctx.lineTo(-2,32);ctx.moveTo(2,28);ctx.lineTo(6,32);ctx.stroke();
+  ctx.fillStyle=c2;ctx.beginPath();ctx.moveTo(16,5);ctx.lineTo(28,2);ctx.lineTo(28,10);ctx.lineTo(16,12);ctx.closePath();ctx.fill();
+}
+function dibujarPez(ctx,color){
+  color=color||'#4C97FF';const c2=ajustarBrillo(color,-40);
+  ctx.fillStyle=c2;ctx.beginPath();ctx.moveTo(22,0);ctx.lineTo(34,-12);ctx.lineTo(34,12);ctx.closePath();ctx.fill();
+  ctx.fillStyle=color;ctx.beginPath();ctx.ellipse(-2,0,22,14,0,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.lineWidth=1;
+  for(let i=0;i<3;i++){ctx.beginPath();ctx.arc(-8+i*8,-2,8,Math.PI*0.2,Math.PI*0.8);ctx.stroke();}
+  ctx.fillStyle=c2;ctx.beginPath();ctx.moveTo(-5,-12);ctx.quadraticCurveTo(2,-22,10,-14);ctx.lineTo(8,-14);ctx.closePath();ctx.fill();
+  ctx.fillStyle='white';ctx.beginPath();ctx.arc(-14,-2,5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#222';ctx.beginPath();ctx.arc(-13,-2,3,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='white';ctx.beginPath();ctx.arc(-12,-3,1,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(-20,2,4,Math.PI*1.2,Math.PI*1.8);ctx.stroke();
+  ctx.fillStyle=c2;ctx.beginPath();ctx.moveTo(0,12);ctx.quadraticCurveTo(5,20,10,12);ctx.closePath();ctx.fill();
+}
+function dibujarMariposa(ctx,color){
+  color=color||'#FF6680';const c2=ajustarBrillo(color,-20);
+  ctx.fillStyle=color;ctx.globalAlpha=0.9;
+  ctx.beginPath();ctx.ellipse(-18,-15,20,14,-0.5,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(18,-15,20,14,0.5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=c2;
+  ctx.beginPath();ctx.ellipse(-14,10,14,10,-0.3,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(14,10,14,10,0.3,0,Math.PI*2);ctx.fill();
+  ctx.globalAlpha=1;
+  ctx.fillStyle='rgba(255,255,255,0.4)';
+  ctx.beginPath();ctx.ellipse(-18,-15,8,5,-0.5,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(18,-15,8,5,0.5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,0.2)';
+  ctx.beginPath();ctx.ellipse(-14,10,5,4,-0.3,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.ellipse(14,10,5,4,0.3,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#333';ctx.beginPath();ctx.ellipse(0,0,4,18,0,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#333';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(-3,-16);ctx.quadraticCurveTo(-12,-28,-10,-32);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(3,-16);ctx.quadraticCurveTo(12,-28,10,-32);ctx.stroke();
+  ctx.fillStyle='#333';ctx.beginPath();ctx.arc(-10,-32,2.5,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(10,-32,2.5,0,Math.PI*2);ctx.fill();
+}
+// ── Vehículos ────────────────────────────────────────────────────────────────
+function dibujarAuto(ctx,color){
+  color=color||'#FF4444';const c2=ajustarBrillo(color,-40);
+  ctx.fillStyle='rgba(0,0,0,0.2)';ctx.beginPath();ctx.ellipse(0,28,30,5,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=c2;ctx.beginPath();ctx.roundRect(-30,8,60,18,4);ctx.fill();
+  ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(-22,-10,44,20,8);ctx.fill();
+  ctx.fillStyle='rgba(180,220,255,0.8)';
+  ctx.beginPath();ctx.roundRect(-18,-7,16,12,3);ctx.fill();
+  ctx.beginPath();ctx.roundRect(2,-7,16,12,3);ctx.fill();
+  ctx.fillStyle='#222';
+  ctx.beginPath();ctx.arc(-18,24,10,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(18,24,10,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#888';
+  ctx.beginPath();ctx.arc(-18,24,5,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(18,24,5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#FFFF88';ctx.beginPath();ctx.roundRect(24,10,6,5,2);ctx.fill();
+  ctx.fillStyle='#ff4444';ctx.beginPath();ctx.roundRect(-30,10,6,5,2);ctx.fill();
+}
+function dibujarCohete(ctx,color){
+  color=color||'#CCCCCC';const c2=ajustarBrillo(color,-30);
+  ctx.fillStyle='#FF4400';ctx.globalAlpha=0.9;
+  ctx.beginPath();ctx.moveTo(-8,30);ctx.quadraticCurveTo(-12,50,-4,45);ctx.quadraticCurveTo(0,55,4,45);ctx.quadraticCurveTo(12,50,8,30);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#FFAA00';ctx.beginPath();ctx.moveTo(-5,30);ctx.quadraticCurveTo(-8,44,0,40);ctx.quadraticCurveTo(8,44,5,30);ctx.closePath();ctx.fill();
+  ctx.globalAlpha=1;
+  ctx.fillStyle=c2;
+  ctx.beginPath();ctx.moveTo(-12,20);ctx.lineTo(-22,35);ctx.lineTo(-12,30);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(12,20);ctx.lineTo(22,35);ctx.lineTo(12,30);ctx.closePath();ctx.fill();
+  ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(-12,-25,24,55,8);ctx.fill();
+  ctx.fillStyle='#FF4444';ctx.beginPath();ctx.moveTo(0,-42);ctx.lineTo(-12,-25);ctx.lineTo(12,-25);ctx.closePath();ctx.fill();
+  ctx.fillStyle='rgba(180,220,255,0.9)';ctx.beginPath();ctx.arc(0,-5,8,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle=c2;ctx.lineWidth=2;ctx.stroke();
+  ctx.fillStyle=c2;[-18,0,18].forEach(y=>{ctx.beginPath();ctx.arc(-12,y,2,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(12,y,2,0,Math.PI*2);ctx.fill();});
+}
+function dibujarBarco(ctx,color){
+  color=color||'#8B4513';const c2=ajustarBrillo(color,-30);
+  ctx.fillStyle='rgba(30,100,200,0.3)';ctx.beginPath();ctx.ellipse(0,28,38,8,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(-35,15);ctx.lineTo(-30,28);ctx.lineTo(30,28);ctx.lineTo(35,15);ctx.closePath();ctx.fill();
+  ctx.fillStyle=ajustarBrillo(color,20);ctx.beginPath();ctx.roundRect(-32,10,64,8,2);ctx.fill();
+  ctx.fillStyle='#ddd';ctx.beginPath();ctx.roundRect(-12,-5,24,18,3);ctx.fill();
+  ctx.fillStyle='rgba(180,220,255,0.8)';ctx.beginPath();ctx.roundRect(-8,-1,8,8,2);ctx.fill();
+  ctx.beginPath();ctx.roundRect(2,-1,8,8,2);ctx.fill();
+  ctx.strokeStyle='#8B4513';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(0,10);ctx.lineTo(0,-30);ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,0.9)';ctx.beginPath();ctx.moveTo(2,-28);ctx.lineTo(22,-10);ctx.lineTo(2,8);ctx.closePath();ctx.fill();
+  ctx.strokeStyle='rgba(0,0,0,0.2)';ctx.lineWidth=1;ctx.stroke();
+  ctx.fillStyle='#FF4444';ctx.beginPath();ctx.moveTo(0,-30);ctx.lineTo(12,-24);ctx.lineTo(0,-18);ctx.closePath();ctx.fill();
+}
+// ── Personajes ───────────────────────────────────────────────────────────────
+function dibujarRobot(ctx,color){
+  color=color||'#4488CC';const c2=ajustarBrillo(color,-30);
+  ctx.fillStyle=c2;ctx.beginPath();ctx.roundRect(-14,22,10,16,3);ctx.fill();ctx.beginPath();ctx.roundRect(4,22,10,16,3);ctx.fill();
+  ctx.fillStyle='#222';ctx.beginPath();ctx.roundRect(-16,36,14,6,3);ctx.fill();ctx.beginPath();ctx.roundRect(2,36,14,6,3);ctx.fill();
+  ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(-20,0,40,24,4);ctx.fill();
+  ctx.strokeStyle=c2;ctx.lineWidth=1.5;ctx.strokeRect(-20,0,40,24);
+  ctx.fillStyle='#FF4444';ctx.beginPath();ctx.arc(-10,10,4,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#44FF44';ctx.beginPath();ctx.arc(0,10,4,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#FFFF44';ctx.beginPath();ctx.arc(10,10,4,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=c2;ctx.beginPath();ctx.roundRect(-32,2,14,10,3);ctx.fill();ctx.beginPath();ctx.roundRect(18,2,14,10,3);ctx.fill();
+  ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(-16,-22,32,24,4);ctx.fill();
+  ctx.strokeStyle=c2;ctx.lineWidth=1.5;ctx.strokeRect(-16,-22,32,24);
+  ctx.fillStyle='#00ffff';ctx.shadowColor='#00ffff';ctx.shadowBlur=6;
+  ctx.beginPath();ctx.roundRect(-12,-16,10,8,2);ctx.fill();ctx.beginPath();ctx.roundRect(2,-16,10,8,2);ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.strokeStyle='#00ffff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-10,-5);
+  for(let i=0;i<5;i++){ctx.lineTo(-10+i*5,-5+(i%2)*3);}ctx.stroke();
+  ctx.strokeStyle=c2;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,-22);ctx.lineTo(0,-32);ctx.stroke();
+  ctx.fillStyle='#FF4444';ctx.beginPath();ctx.arc(0,-33,3,0,Math.PI*2);ctx.fill();
+}
+function dibujarFantasma(ctx,color){
+  color=color||'#DDDDFF';ctx.globalAlpha=0.85;
+  ctx.fillStyle=color;ctx.beginPath();ctx.arc(0,-10,22,Math.PI,0);
+  ctx.lineTo(22,20);ctx.quadraticCurveTo(17,28,12,20);ctx.quadraticCurveTo(6,28,0,20);
+  ctx.quadraticCurveTo(-6,28,-12,20);ctx.quadraticCurveTo(-17,28,-22,20);ctx.lineTo(-22,-10);ctx.closePath();ctx.fill();
+  ctx.globalAlpha=1;
+  ctx.fillStyle='#333';ctx.beginPath();ctx.ellipse(-8,-10,5,6,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.ellipse(8,-10,5,6,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='white';ctx.beginPath();ctx.arc(-6,-11,2,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(10,-11,2,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#333';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,2,8,0.2,Math.PI-0.2);ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,0.4)';ctx.beginPath();ctx.ellipse(-5,-18,6,4,-0.3,0,Math.PI*2);ctx.fill();
+}
+function dibujarMonstruo(ctx,color){
+  color=color||'#55AA44';const c2=ajustarBrillo(color,-30);
+  ctx.fillStyle=color;ctx.beginPath();ctx.ellipse(0,8,24,28,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=c2;ctx.beginPath();ctx.roundRect(-20,28,14,14,4);ctx.fill();ctx.beginPath();ctx.roundRect(6,28,14,14,4);ctx.fill();
+  ctx.fillStyle='#222';[-22,-16,-10].forEach(x=>{ctx.beginPath();ctx.ellipse(x+3,43,2.5,4,0,0,Math.PI*2);ctx.fill();});
+  [8,14,20].forEach(x=>{ctx.beginPath();ctx.ellipse(x+1,43,2.5,4,0,0,Math.PI*2);ctx.fill();});
+  ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(-36,0,16,10,4);ctx.fill();ctx.beginPath();ctx.roundRect(20,0,16,10,4);ctx.fill();
+  ctx.fillStyle='#AA2222';ctx.beginPath();ctx.moveTo(-10,-38);ctx.lineTo(-6,-24);ctx.lineTo(-14,-24);ctx.closePath();ctx.fill();
+  ctx.beginPath();ctx.moveTo(10,-38);ctx.lineTo(6,-24);ctx.lineTo(14,-24);ctx.closePath();ctx.fill();
+  ctx.fillStyle=color;ctx.beginPath();ctx.ellipse(0,-14,20,16,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#FF4444';ctx.beginPath();ctx.arc(-8,-16,6,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(8,-16,6,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#222';ctx.beginPath();ctx.arc(-8,-16,3,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(8,-16,3,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='white';ctx.beginPath();ctx.arc(-6,-17,1.5,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(10,-17,1.5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#AA2222';ctx.beginPath();ctx.arc(0,-4,10,0,Math.PI);ctx.fill();
+  ctx.fillStyle='white';[-6,-2,2,6].forEach(x=>{ctx.beginPath();ctx.moveTo(x,-4);ctx.lineTo(x+2,4);ctx.lineTo(x+4,-4);ctx.closePath();ctx.fill();});
+  ctx.fillStyle=c2;[[-14,0],[16,4],[-8,12]].forEach(([x,y])=>{ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fill();});
+}
+// ── Objetos ──────────────────────────────────────────────────────────────────
+function dibujarPelota(ctx,color){
+  color=color||'#FF4444';
+  ctx.fillStyle='rgba(0,0,0,0.2)';ctx.beginPath();ctx.ellipse(2,28,18,5,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=color;ctx.beginPath();ctx.arc(0,0,24,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(0,0,24,-0.5,Math.PI+0.5);ctx.stroke();
+  ctx.beginPath();ctx.ellipse(0,0,10,24,0,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,0.35)';ctx.beginPath();ctx.ellipse(-6,-8,8,5,-0.4,0,Math.PI*2);ctx.fill();
+}
+function dibujarMoneda(ctx,color){
+  color=color||'#FFD700';const c2=ajustarBrillo(color,-30);
+  ctx.fillStyle='rgba(0,0,0,0.2)';ctx.beginPath();ctx.ellipse(2,28,18,4,0,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle=color;ctx.beginPath();ctx.arc(0,0,22,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle=c2;ctx.lineWidth=3;ctx.stroke();
+  ctx.fillStyle=c2;ctx.font='bold 22px "Segoe UI"';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText('$',0,1);ctx.textAlign='left';ctx.textBaseline='alphabetic';
+  ctx.fillStyle='rgba(255,255,255,0.4)';ctx.beginPath();ctx.ellipse(-5,-6,8,5,-0.4,0,Math.PI*2);ctx.fill();
+}
+function dibujarBomba(ctx,color){
+  color=color||'#333333';
+  ctx.strokeStyle='#888';ctx.lineWidth=3;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(8,-22);ctx.quadraticCurveTo(18,-30,14,-38);ctx.stroke();
+  ctx.fillStyle='#FF6600';ctx.globalAlpha=0.9;
+  ctx.beginPath();ctx.moveTo(14,-38);ctx.quadraticCurveTo(18,-46,14,-48);ctx.quadraticCurveTo(10,-44,14,-38);ctx.fill();
+  ctx.fillStyle='#FFFF00';ctx.globalAlpha=0.8;
+  ctx.beginPath();ctx.moveTo(14,-38);ctx.quadraticCurveTo(16,-43,14,-45);ctx.quadraticCurveTo(12,-42,14,-38);ctx.fill();
+  ctx.globalAlpha=1;
+  ctx.fillStyle=color;ctx.beginPath();ctx.arc(0,0,22,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#555';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.fillStyle='#666';ctx.beginPath();ctx.roundRect(-5,-24,10,6,2);ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.15)';ctx.beginPath();ctx.ellipse(-6,-6,7,5,-0.5,0,Math.PI*2);ctx.fill();
+}
+function dibujarEstrellaFugaz(ctx,color){
+  color=color||'#FFDD00';
+  const grd=ctx.createLinearGradient(-40,20,10,-10);
+  grd.addColorStop(0,'rgba(255,200,0,0)');grd.addColorStop(1,'rgba(255,220,100,0.7)');
+  ctx.fillStyle=grd;ctx.beginPath();ctx.moveTo(10,-10);ctx.lineTo(-40,20);ctx.lineTo(-35,28);ctx.lineTo(10,2);ctx.closePath();ctx.fill();
+  ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=10;
+  ctx.beginPath();
+  for(let i=0;i<10;i++){const r=i%2===0?18:8,a=(i*36-90)*Math.PI/180;i===0?ctx.moveTo(r*Math.cos(a),r*Math.sin(a)):ctx.lineTo(r*Math.cos(a),r*Math.sin(a));}
+  ctx.closePath();ctx.fill();ctx.shadowBlur=0;
+}
+
+function escribirConsola(texto, tipo) {
+  const out=document.getElementById('consola-output');
+  const div=document.createElement('div');
+  div.className=tipo==='error'?'c-error':tipo==='info'?'c-info':tipo==='warn'?'c-warn':'c-ok';
+  div.textContent='> '+texto; out.appendChild(div); out.scrollTop=out.scrollHeight;
+  window.chrome?.webview?.postMessage(JSON.stringify({tipo:'consolaMsg',texto}));
+}
+function limpiarConsola(){document.getElementById('consola-output').innerHTML='';}
+
+// ══════════════════════════════════════════════════════════
+// PUNTUACIÓN Y DATOS
+// ══════════════════════════════════════════════════════════
+let _puntos=0;
+function _setPuntos(n){_puntos=n;document.getElementById('puntuacion-display').textContent=`Puntos: ${_puntos}`;}
+function _cambiarPuntos(d){_setPuntos(_puntos+d);}
+
+const _datos = {
+  guardar(k,v){try{localStorage.setItem('codi_'+k,JSON.stringify(v));}catch(e){}},
+  cargar(k){try{return JSON.parse(localStorage.getItem('codi_'+k));}catch(e){return null;}},
+  borrar(k){try{localStorage.removeItem('codi_'+k);}catch(e){}}
+};
+
+// ══════════════════════════════════════════════════════════
+// SONIDO
+// ══════════════════════════════════════════════════════════
+let _audioCtx=null;
+function _getAudio(){if(!_audioCtx)_audioCtx=new(window.AudioContext||window.webkitAudioContext)();return _audioCtx;}
+function _tocarNota(freq,dur,tipo){
+  try{const ac=_getAudio(),osc=ac.createOscillator(),g=ac.createGain();
+  osc.connect(g);g.connect(ac.destination);osc.type=tipo||'sine';osc.frequency.value=freq||440;
+  g.gain.setValueAtTime(0.3,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+(dur||0.5));
+  osc.start(ac.currentTime);osc.stop(ac.currentTime+(dur||0.5));}catch(e){}
+}
+function _tocarSonido(n){
+  const s={pop:800,miau:600,bip:440,explosion:100,victoria:880};
+  const t={pop:'sine',miau:'sawtooth',bip:'square',explosion:'sawtooth',victoria:'sine'};
+  _tocarNota(s[n]||440,0.3,t[n]||'sine');
+}
+let _volumen=1.0;
+
+// ══════════════════════════════════════════════════════════
+// RUNTIME
+// ══════════════════════════════════════════════════════════
+let _detenido=false, _respuesta='', _timerStart=Date.now();
+const _esperar=(s)=>new Promise(r=>setTimeout(r,s*1000));
+
+const _teclas=new Set();
+document.addEventListener('keydown',e=>_teclas.add(e.key));
+document.addEventListener('keyup',  e=>_teclas.delete(e.key));
+const _teclaPulsada=(k)=>_teclas.has(k);
+
+let _ratonX=0, _ratonY=0, _ratonPresionado=false;
+canvas.addEventListener('mousemove',e=>{
+  const r=canvas.getBoundingClientRect();
+  _ratonX=e.clientX-r.left-canvas.width/2;
+  _ratonY=-(e.clientY-r.top-canvas.height/2);
+});
+canvas.addEventListener('mousedown',()=>_ratonPresionado=true);
+canvas.addEventListener('mouseup',  ()=>_ratonPresionado=false);
+
+const _preguntar=(q)=>{
+  document.getElementById('dialogo-texto').textContent=String(q);
+  document.getElementById('dialogo-input').value='';
+  document.getElementById('dialogo-pregunta').classList.add('visible');
+  document.getElementById('dialogo-input').focus();
+  escribirConsola(String(q),'info');
+  return new Promise(r=>{window._responderPregunta=r;});
+};
+function responderDialogo(){
+  const v=document.getElementById('dialogo-input').value;
+  document.getElementById('dialogo-pregunta').classList.remove('visible');
+  _respuesta=v; if(window._responderPregunta) window._responderPregunta(v);
+}
+document.getElementById('dialogo-input').addEventListener('keydown',e=>{if(e.key==='Enter')responderDialogo();});
+
+// Mensajes entre scripts
+let _mensajes={};
+
+// Clones
+let _clones={};
+let _alIniciarClon=null;
+
+// Fondos
+let _alCambiarFondo=null;
+function _cambiarFondo(n) {
+  _fondoActual = ((n-1)%FONDOS.length+FONDOS.length)%FONDOS.length;
+  dibujarEscenario();
+  if(_alCambiarFondo) _alCambiarFondo(FONDOS[_fondoActual].nombre);
+}
+
+// Arduino - comunicacion real con C# via postMessage
+let _arduinoIdCounter=0;
+const _arduinoPendientes={};
+window._arduinoRespuesta=function(jsonStr){
+  try{const r=JSON.parse(jsonStr);const fn=_arduinoPendientes[r.id];if(fn){delete _arduinoPendientes[r.id];fn(r);}}catch(e){}
+};
+function _arduinoCmd(tipo,datos){
+  return new Promise((res)=>{
+    const id="a"+(++_arduinoIdCounter);
+    _arduinoPendientes[id]=res;
+    window.chrome?.webview?.postMessage(JSON.stringify({tipo,id,...datos}));
+    setTimeout(()=>{if(_arduinoPendientes[id]){delete _arduinoPendientes[id];res({ok:false,valor:0});}},5000);
+  });
+}
+const _arduinoApi={
+  async conectar(p,b){escribirConsola("Arduino: conectando a "+p+"...","info");const r=await _arduinoCmd("arduino_conectar",{puerto:p,baud:b||9600});return r.ok;},
+  async digitalEscribir(p,v){const r=await _arduinoCmd("arduino_dw",{pin:p,valor:v?1:0});return r.ok;},
+  async digitalLeer(p){const r=await _arduinoCmd("arduino_dr",{pin:p});return r.valor===1;},
+  async analogLeer(p){const r=await _arduinoCmd("arduino_ar",{pin:p});return r.valor||0;},
+  async analogEscribir(p,v){const r=await _arduinoCmd("arduino_aw",{pin:p,valor:v});return r.ok;},
+  async servo(p,a){const r=await _arduinoCmd("arduino_sv",{pin:p,valor:a});return r.ok;},
+  async enviar(t){const r=await _arduinoCmd("arduino_enviar",{texto:String(t)});return r.ok;},
+  async leer(){const r=await _arduinoCmd("arduino_leer",{});return r.texto||"";}
+};
+
+// ══════════════════════════════════════════════════════════
+// BLOQUES
+// ══════════════════════════════════════════════════════════
+Blockly.defineBlocksWithJsonArray([
+
+  // ── MOVIMIENTO ─────────────────────────────────────────
+  {"type":"codi_mover","message0":"mover %1 pasos","args0":[{"type":"input_value","name":"STEPS","check":"Number"}],"previousStatement":null,"nextStatement":null,"colour":"#4C97FF"},
+  {"type":"codi_girar_der","message0":"girar ↻ %1 grados","args0":[{"type":"input_value","name":"DEGREES","check":"Number"}],"previousStatement":null,"nextStatement":null,"colour":"#4C97FF"},
+  {"type":"codi_girar_izq","message0":"girar ↺ %1 grados","args0":[{"type":"input_value","name":"DEGREES","check":"Number"}],"previousStatement":null,"nextStatement":null,"colour":"#4C97FF"},
+  {"type":"codi_ir_a_opcion","message0":"ir a %1","args0":[{"type":"field_dropdown","name":"OPCION","options":[["posición aleatoria","azarosa"],["posición del mouse","mouse"],["Jugador","Jugador"]]}],"previousStatement":null,"nextStatement":null,"colour":"#4C97FF"},
+  {"type":"codi_ir_a","message0":"ir a x: %1  y: %2","args0":[{"type":"input_value","name":"X","check":"Number"},{"type":"input_value","name":"Y","check":"Number"}],"previousStatement":null,"nextStatement":null,"colour":"#4C97FF"},
+  {"type":"codi_ir_al_centro","message0":"ir al centro","previousStatement":null,"nextStatement":null,"colour":"#4C97FF"},
+  {"type":"codi_deslizar_a","message0":"deslizarse en %1 seg a x: %2  y: %3","args0":[{"type":"input_value","name":"SECS","check":"Number"},{"type":"input_value","name":"X","check":"Number"},{"type":"input_value","name":"Y","check":"Number"}],"previousStatement":null,"nextStatement":null,"colour":"#4C97FF"},
+  {"type":"codi_fijar_x","message0":"fijar x en %1","args0":[{"type":"input_value","name":"X","check":"Number"}],"previousStatement":null,"nextStatement":null,"colour":"#4C97FF"},
+  {"type":"codi_fijar_y","message0":"fijar y en %1","args0":[{"type":"input_value","name":"Y","check":"Number"}],"previousStatement":null,"nextStatement":null,"colour":"#4C97FF"},
+  {"type":"codi_cambiar_x","message0":"cambiar x en %1","args0":[{"type":"input_value","name":"DX","check":"Number"}],"previousStatement":null,"nextStatement":null,"colour":"#4C97FF"},
+  {"type":"codi_cambiar_y","message0":"cambiar y en %1","args0":[{"type":"input_value","name":"DY","check":"Number"}],"previousStatement":null,"nextStatement":null,"colour":"#4C97FF"},
+  {"type":"codi_apuntar_a","message0":"apuntar en dirección %1°","args0":[{"type":"input_value","name":"ANG","check":"Number"}],"previousStatement":null,"nextStatement":null,"colour":"#4C97FF"},
+  {"type":"codi_apuntar_al_mouse","message0":"apuntar hacia el mouse","previousStatement":null,"nextStatement":null,"colour":"#4C97FF"},
+  {"type":"codi_rebotar","message0":"si está en el borde, rebotar","previousStatement":null,"nextStatement":null,"colour":"#4C97FF"},
+  {"type":"codi_pos_x","message0":"posición x","output":"Number","colour":"#4C97FF"},
+  {"type":"codi_pos_y","message0":"posición y","output":"Number","colour":"#4C97FF"},
+  {"type":"codi_direccion","message0":"dirección","output":"Number","colour":"#4C97FF"},
+  {"type":"codi_distancia_a","message0":"distancia a %1","args0":[{"type":"field_input","name":"SPRITE","text":"Jugador"}],"output":"Number","colour":"#4C97FF"},
+
+  // ── APARIENCIA ─────────────────────────────────────────
+  {"type":"codi_decir","message0":"decir %1","args0":[{"type":"input_value","name":"MSG"}],"previousStatement":null,"nextStatement":null,"colour":"#9966FF"},
+  {"type":"codi_decir_seg","message0":"decir %1 durante %2 segundos","args0":[{"type":"input_value","name":"MSG"},{"type":"input_value","name":"SECS","check":"Number"}],"previousStatement":null,"nextStatement":null,"colour":"#9966FF"},
+  {"type":"codi_pensar","message0":"pensar %1","args0":[{"type":"input_value","name":"MSG"}],"previousStatement":null,"nextStatement":null,"colour":"#9966FF"},
+  {"type":"codi_cambiar_disfraz","message0":"cambiar disfraz a %1","args0":[{"type":"field_dropdown","name":"DISFRAZ","options":[["Perrito","perrito"],["Gato","gato"],["Pájaro","pajaro"],["Pez","pez"],["Mariposa","mariposa"],["Auto","auto"],["Cohete","cohete"],["Barco","barco"],["Robot","robot"],["Fantasma","fantasma"],["Monstruo","monstruo"],["Pelota","pelota"],["Moneda","moneda"],["Bomba","bomba"],["Estrella fugaz","estfugaz"],["Cuadrado","cuadrado"],["Círculo","circulo"],["Triángulo","triangulo"],["Estrella","estrella"]]}],"previousStatement":null,"nextStatement":null,"colour":"#9966FF"},
+  {"type":"codi_disfraz_siguiente","message0":"disfraz siguiente","previousStatement":null,"nextStatement":null,"colour":"#9966FF"},
+  {"type":"codi_cambiar_fondo","message0":"cambiar fondo a %1","args0":[{"type":"field_dropdown","name":"FONDO","options":[["Espacio","0"],["Naturaleza","1"],["Ciudad","2"],["Mar","3"],["Desierto","4"],["Aula","5"],["Plataformas","6"],["Laberinto","7"],["Negro","8"],["Color personalizado","9"]]}],"previousStatement":null,"nextStatement":null,"colour":"#9966FF"},
+  {"type":"codi_fondo_num","message0":"cambiar fondo al número %1","args0":[{"type":"input_value","name":"NUM","check":"Number"}],"previousStatement":null,"nextStatement":null,"colour":"#9966FF"},
+  {"type":"codi_fondo_actual","message0":"número de fondo","output":"Number","colour":"#9966FF"},
+  {"type":"codi_fondo_color","message0":"fijar color del fondo a %1","args0":[{"type":"field_colour","name":"COLOR","colour":"#3a7bd5"}],"previousStatement":null,"nextStatement":null,"colour":"#9966FF"},
+  {"type":"codi_mostrar","message0":"mostrar","previousStatement":null,"nextStatement":null,"colour":"#9966FF"},
+  {"type":"codi_esconder","message0":"esconder","previousStatement":null,"nextStatement":null,"colour":"#9966FF"},
+  {"type":"codi_fijar_tamanio","message0":"fijar tamaño a %1 %%","args0":[{"type":"input_value","name":"SIZE","check":"Number"}],"previousStatement":null,"nextStatement":null,"colour":"#9966FF"},
+  {"type":"codi_cambiar_tamanio","message0":"cambiar tamaño en %1","args0":[{"type":"input_value","name":"CHANGE","check":"Number"}],"previousStatement":null,"nextStatement":null,"colour":"#9966FF"},
+  {"type":"codi_fijar_color","message0":"fijar color a %1","args0":[{"type":"field_colour","name":"COLOR","colour":"#4C97FF"}],"previousStatement":null,"nextStatement":null,"colour":"#9966FF"},
+  {"type":"codi_ir_a_capa","message0":"ir a la capa %1","args0":[{"type":"input_value","name":"CAPA","check":"Number"}],"previousStatement":null,"nextStatement":null,"colour":"#9966FF"},
+  {"type":"codi_tamanio","message0":"tamaño","output":"Number","colour":"#9966FF"},
+  {"type":"codi_disfraz_nombre","message0":"disfraz actual","output":"String","colour":"#9966FF"},
+
+  // ── SONIDO ─────────────────────────────────────────────
+  {"type":"codi_sonido","message0":"reproducir sonido %1","args0":[{"type":"field_dropdown","name":"SND","options":[["pop","pop"],["miau","miau"],["bip","bip"],["explosión","explosion"],["victoria","victoria"]]}],"previousStatement":null,"nextStatement":null,"colour":"#CF63CF"},
+  {"type":"codi_nota","message0":"tocar nota %1 Hz durante %2 seg","args0":[{"type":"input_value","name":"FREQ","check":"Number"},{"type":"input_value","name":"DUR","check":"Number"}],"previousStatement":null,"nextStatement":null,"colour":"#CF63CF"},
+  {"type":"codi_volumen","message0":"fijar volumen a %1 %%","args0":[{"type":"input_value","name":"VOL","check":"Number"}],"previousStatement":null,"nextStatement":null,"colour":"#CF63CF"},
+  {"type":"codi_sonido_propio","message0":"reproducir mi sonido %1","args0":[{"type":"field_input","name":"NOMBRE","text":"MiSonido"}],"previousStatement":null,"nextStatement":null,"colour":"#CF63CF"},
+
+  // ── EVENTOS ────────────────────────────────────────────
+  {"type":"codi_bandera","message0":"al presionar 🏁","nextStatement":null,"colour":"#FFAB19"},
+  {"type":"codi_tecla","message0":"al presionar tecla %1","args0":[{"type":"field_dropdown","name":"TECLA","options":[["espacio","Space"],["↑","ArrowUp"],["↓","ArrowDown"],["←","ArrowLeft"],["→","ArrowRight"],["enter","Enter"],["a","a"],["d","d"],["w","w"],["s","s"]]}],"nextStatement":null,"colour":"#FFAB19"},
+  {"type":"codi_al_recibir","message0":"al recibir %1","args0":[{"type":"field_input","name":"MSG","text":"inicio"}],"nextStatement":null,"colour":"#FFAB19"},
+  {"type":"codi_enviar","message0":"enviar %1","args0":[{"type":"input_value","name":"MSG"}],"previousStatement":null,"nextStatement":null,"colour":"#FFAB19"},
+  {"type":"codi_cuando_fondo","message0":"cuando el fondo cambie a %1","args0":[{"type":"field_dropdown","name":"FONDO","options":[["Espacio","Espacio"],["Naturaleza","Naturaleza"],["Ciudad","Ciudad"],["Mar","Mar"],["Desierto","Desierto"]]}],"nextStatement":null,"colour":"#FFAB19"},
+  {"type":"codi_al_iniciar_clon","message0":"al comenzar como clon","nextStatement":null,"colour":"#FFAB19"},
+
+  // ── CONTROL ────────────────────────────────────────────
+  {"type":"codi_esperar","message0":"esperar %1 segundos","args0":[{"type":"input_value","name":"SECS","check":"Number"}],"previousStatement":null,"nextStatement":null,"colour":"#FF8C1A"},
+  {"type":"codi_repetir","message0":"repetir %1 veces","args0":[{"type":"input_value","name":"TIMES","check":"Number"}],"message1":"%1","args1":[{"type":"input_statement","name":"DO"}],"previousStatement":null,"nextStatement":null,"colour":"#FF8C1A"},
+  {"type":"codi_siempre","message0":"por siempre","message1":"%1","args1":[{"type":"input_statement","name":"DO"}],"previousStatement":null,"colour":"#FF8C1A"},
+  {"type":"codi_si","message0":"si %1 entonces","args0":[{"type":"input_value","name":"COND","check":"Boolean"}],"message1":"%1","args1":[{"type":"input_statement","name":"DO"}],"previousStatement":null,"nextStatement":null,"colour":"#FF8C1A"},
+  {"type":"codi_si_sino","message0":"si %1 entonces","args0":[{"type":"input_value","name":"COND","check":"Boolean"}],"message1":"%1","args1":[{"type":"input_statement","name":"DO"}],"message2":"si no","message3":"%1","args3":[{"type":"input_statement","name":"ELSE"}],"previousStatement":null,"nextStatement":null,"colour":"#FF8C1A"},
+  {"type":"codi_esperar_hasta","message0":"esperar hasta que %1","args0":[{"type":"input_value","name":"COND","check":"Boolean"}],"previousStatement":null,"nextStatement":null,"colour":"#FF8C1A"},
+  {"type":"codi_repetir_hasta","message0":"repetir hasta que %1","args0":[{"type":"input_value","name":"COND","check":"Boolean"}],"message1":"%1","args1":[{"type":"input_statement","name":"DO"}],"previousStatement":null,"nextStatement":null,"colour":"#FF8C1A"},
+  {"type":"codi_detener","message0":"detener %1","args0":[{"type":"field_dropdown","name":"OPCION","options":[["todo","todo"],["este script","este"],["otros scripts del sprite","otros"]]}],"previousStatement":null,"colour":"#FF8C1A"},
+  {"type":"codi_crear_clon","message0":"crear clon de %1","args0":[{"type":"field_dropdown","name":"OPCION","options":[["mí mismo","yo"],["Jugador","Jugador"]]}],"previousStatement":null,"nextStatement":null,"colour":"#FF8C1A"},
+  {"type":"codi_borrar_clon","message0":"borrar este clon","previousStatement":null,"colour":"#FF8C1A"},
+
+  // ── SENSORES ───────────────────────────────────────────
+  {"type":"codi_preguntar","message0":"preguntar %1 y esperar","args0":[{"type":"input_value","name":"Q"}],"previousStatement":null,"nextStatement":null,"colour":"#5CB1D6"},
+  {"type":"codi_respuesta","message0":"respuesta","output":null,"colour":"#5CB1D6"},
+  {"type":"codi_tecla_pulsada","message0":"¿tecla %1 presionada?","args0":[{"type":"field_dropdown","name":"TECLA","options":[["espacio","Space"],["↑","ArrowUp"],["↓","ArrowDown"],["←","ArrowLeft"],["→","ArrowRight"],["a","a"],["d","d"],["w","w"],["s","s"]]}],"output":"Boolean","colour":"#5CB1D6"},
+  {"type":"codi_tocando_mouse","message0":"¿tocando la punta del mouse?","output":"Boolean","colour":"#5CB1D6"},
+  {"type":"codi_click_mouse","message0":"¿mouse presionado?","output":"Boolean","colour":"#5CB1D6"},
+  {"type":"codi_tocando_borde","message0":"¿tocando el borde?","output":"Boolean","colour":"#5CB1D6"},
+  {"type":"codi_tocando_sprite","message0":"¿tocando %1?","args0":[{"type":"field_input","name":"SPRITE","text":"Jugador"}],"output":"Boolean","colour":"#5CB1D6"},
+  {"type":"codi_tocando_color","message0":"¿tocando el color %1?","args0":[{"type":"field_colour","name":"COLOR","colour":"#ff0000"}],"output":"Boolean","colour":"#5CB1D6"},
+  {"type":"codi_color_toca_color","message0":"¿color %1 tocando %2?","args0":[{"type":"field_colour","name":"COLOR1","colour":"#ff0000"},{"type":"field_colour","name":"COLOR2","colour":"#0000ff"}],"output":"Boolean","colour":"#5CB1D6"},
+  {"type":"codi_temporizador","message0":"temporizador","output":"Number","colour":"#5CB1D6"},
+  {"type":"codi_reset_timer","message0":"reiniciar temporizador","previousStatement":null,"nextStatement":null,"colour":"#5CB1D6"},
+  {"type":"codi_raton_x","message0":"mouse x","output":"Number","colour":"#5CB1D6"},
+  {"type":"codi_raton_y","message0":"mouse y","output":"Number","colour":"#5CB1D6"},
+
+  // ── SPRITES ────────────────────────────────────────────
+  {"type":"codi_crear_sprite","message0":"crear sprite %1 con disfraz %2","args0":[{"type":"field_input","name":"NOMBRE","text":"Enemigo"},{"type":"field_dropdown","name":"DISFRAZ","options":[["Perrito","perrito"],["Gato","gato"],["Pájaro","pajaro"],["Pez","pez"],["Mariposa","mariposa"],["Auto","auto"],["Cohete","cohete"],["Barco","barco"],["Robot","robot"],["Fantasma","fantasma"],["Monstruo","monstruo"],["Pelota","pelota"],["Moneda","moneda"],["Bomba","bomba"],["Estrella fugaz","estfugaz"],["Cuadrado","cuadrado"],["Círculo","circulo"],["Triángulo","triangulo"],["Estrella","estrella"]]}],"previousStatement":null,"nextStatement":null,"colour":"#FF6680"},
+  {"type":"codi_usar_sprite","message0":"usar sprite %1","args0":[{"type":"field_input","name":"SPRITE","text":"Jugador"}],"previousStatement":null,"nextStatement":null,"colour":"#FF6680"},
+
+  // ── PUNTUACIÓN ─────────────────────────────────────────
+  {"type":"codi_fijar_puntos","message0":"fijar puntuación en %1","args0":[{"type":"input_value","name":"N","check":"Number"}],"previousStatement":null,"nextStatement":null,"colour":"#FF8C1A"},
+  {"type":"codi_sumar_puntos","message0":"sumar %1 a la puntuación","args0":[{"type":"input_value","name":"N","check":"Number"}],"previousStatement":null,"nextStatement":null,"colour":"#FF8C1A"},
+  {"type":"codi_puntos","message0":"puntuación","output":"Number","colour":"#FF8C1A"},
+
+  // ── DATOS ──────────────────────────────────────────────
+  {"type":"codi_guardar_dato","message0":"guardar %1 con valor %2","args0":[{"type":"field_input","name":"CLAVE","text":"nombre"},{"type":"input_value","name":"VALOR"}],"previousStatement":null,"nextStatement":null,"colour":"#8855AA"},
+  {"type":"codi_cargar_dato","message0":"cargar dato %1","args0":[{"type":"field_input","name":"CLAVE","text":"nombre"}],"output":null,"colour":"#8855AA"},
+
+  // ── ARDUINO ────────────────────────────────────────────
+  {"type":"codi_arduino_conectar","message0":"Arduino: conectar puerto %1","args0":[{"type":"input_value","name":"PUERTO"}],"previousStatement":null,"nextStatement":null,"colour":"#00979D"},
+  {"type":"codi_arduino_enviar","message0":"Arduino: enviar %1","args0":[{"type":"input_value","name":"MSG"}],"previousStatement":null,"nextStatement":null,"colour":"#00979D"},
+  {"type":"codi_arduino_leer","message0":"Arduino: leer línea","output":null,"colour":"#00979D"},
+  {"type":"codi_arduino_dw","message0":"Arduino: pin %1 → %2","args0":[{"type":"input_value","name":"PIN","check":"Number"},{"type":"field_dropdown","name":"VALOR","options":[["HIGH (encendido)","1"],["LOW (apagado)","0"]]}],"previousStatement":null,"nextStatement":null,"colour":"#00979D"},
+  {"type":"codi_arduino_dr","message0":"Arduino: leer pin digital %1","args0":[{"type":"input_value","name":"PIN","check":"Number"}],"output":"Boolean","colour":"#00979D"},
+  {"type":"codi_arduino_ar","message0":"Arduino: leer pin analógico A%1","args0":[{"type":"input_value","name":"PIN","check":"Number"}],"output":"Number","colour":"#00979D"},
+  {"type":"codi_arduino_aw","message0":"Arduino: PWM pin %1 valor %2","args0":[{"type":"input_value","name":"PIN","check":"Number"},{"type":"input_value","name":"VALOR","check":"Number"}],"previousStatement":null,"nextStatement":null,"colour":"#00979D"},
+  {"type":"codi_arduino_servo","message0":"Arduino: servo pin %1 ángulo %2°","args0":[{"type":"input_value","name":"PIN","check":"Number"},{"type":"input_value","name":"ANGULO","check":"Number"}],"previousStatement":null,"nextStatement":null,"colour":"#00979D"}
+]);
+
+// ══════════════════════════════════════════════════════════
+// GENERADORES
+// ══════════════════════════════════════════════════════════
+const G = Blockly.JavaScript;
+const spRef = () => `_sprites[_spriteActivo]`;
+
+// Movimiento
+G.forBlock['codi_mover']          = (b,g) => `${spRef()}.mover(${g.valueToCode(b,'STEPS',0)||10});\n`;
+G.forBlock['codi_girar_der']      = (b,g) => `${spRef()}.girar(${g.valueToCode(b,'DEGREES',0)||15});\n`;
+G.forBlock['codi_girar_izq']      = (b,g) => `${spRef()}.girar(-(${g.valueToCode(b,'DEGREES',0)||15}));\n`;
+G.forBlock['codi_ir_a_opcion']    = (b)   => {
+  const op=b.getFieldValue('OPCION');
+  if(op==='azarosa') return `${spRef()}.irAlAzar();\n`;
+  if(op==='mouse')   return `${spRef()}.irAlMouse();\n`;
+  return `${spRef()}.irASprite("${op}");\n`;
+};
+G.forBlock['codi_ir_a']           = (b,g) => `${spRef()}.irA(${g.valueToCode(b,'X',0)||0},${g.valueToCode(b,'Y',0)||0});\n`;
+G.forBlock['codi_ir_al_centro']   = ()    => `${spRef()}.irA(0,0);\n`;
+G.forBlock['codi_deslizar_a']     = (b,g) => {
+  const s=g.valueToCode(b,'SECS',0)||1, x=g.valueToCode(b,'X',0)||0, y=g.valueToCode(b,'Y',0)||0;
+  return `{const _s=${spRef()},_sx=_s.x,_sy=_s.y,_tx=${x},_ty=${y},_st=${s}*1000,_t0=Date.now();while(Date.now()-_t0<_st){const _p=(Date.now()-_t0)/_st;_s.x=_sx+(_tx-_sx)*_p;_s.y=_sy+(_ty-_sy)*_p;_s._upd();await _esperar(0.016);}${spRef()}.irA(${x},${y});}\n`;
+};
+G.forBlock['codi_fijar_x']        = (b,g) => `${spRef()}.fijarX(${g.valueToCode(b,'X',0)||0});\n`;
+G.forBlock['codi_fijar_y']        = (b,g) => `${spRef()}.fijarY(${g.valueToCode(b,'Y',0)||0});\n`;
+G.forBlock['codi_cambiar_x']      = (b,g) => `${spRef()}.cambiarX(${g.valueToCode(b,'DX',0)||0});\n`;
+G.forBlock['codi_cambiar_y']      = (b,g) => `${spRef()}.cambiarY(${g.valueToCode(b,'DY',0)||0});\n`;
+G.forBlock['codi_apuntar_a']      = (b,g) => `${spRef()}.apuntarA(${g.valueToCode(b,'ANG',0)||90});\n`;
+G.forBlock['codi_apuntar_al_mouse']= ()   => `${spRef()}.apuntarAlMouse();\n`;
+G.forBlock['codi_rebotar']        = ()    => `${spRef()}.rebotar();\n`;
+G.forBlock['codi_pos_x']          = ()    => [`${spRef()}.x`, 0];
+G.forBlock['codi_pos_y']          = ()    => [`${spRef()}.y`, 0];
+G.forBlock['codi_direccion']      = ()    => [`${spRef()}.dir`, 0];
+G.forBlock['codi_distancia_a']    = (b)   => [`${spRef()}.distanciaA("${b.getFieldValue('SPRITE')}")`, 0];
+
+// Apariencia
+G.forBlock['codi_decir']           = (b,g) => `${spRef()}.decir(${g.valueToCode(b,'MSG',0)||'""'});\n`;
+G.forBlock['codi_decir_seg']       = (b,g) => `await ${spRef()}.decirPorSegundos(${g.valueToCode(b,'MSG',0)||'""'},${g.valueToCode(b,'SECS',0)||2});\n`;
+G.forBlock['codi_pensar']          = (b,g) => `${spRef()}.pensar(${g.valueToCode(b,'MSG',0)||'""'});\n`;
+G.forBlock['codi_cambiar_disfraz'] = (b)   => `${spRef()}.fijarDisfraz("${b.getFieldValue('DISFRAZ')}");\n`;
+G.forBlock['codi_disfraz_siguiente']= ()   => `${spRef()}.disfrazSiguiente();\n`;
+G.forBlock['codi_cambiar_fondo']   = (b)   => `_cambiarFondo(${parseInt(b.getFieldValue('FONDO'))+1});\n`;
+G.forBlock['codi_fondo_num']       = (b,g) => `_cambiarFondo(${g.valueToCode(b,'NUM',0)||1});\n`;
+G.forBlock['codi_fondo_actual']    = ()    => [`(_fondoActual+1)`, 0];
+G.forBlock['codi_fondo_color']    = (b)   => `_fondoColor="${b.getFieldValue('COLOR')}";if(_fondoActual===9)dibujarEscenario();\n`;
+G.forBlock['codi_mostrar']         = ()    => `${spRef()}.mostrar();\n`;
+G.forBlock['codi_esconder']        = ()    => `${spRef()}.esconder();\n`;
+G.forBlock['codi_fijar_tamanio']   = (b,g) => `${spRef()}.fijarTamanio(${g.valueToCode(b,'SIZE',0)||100});\n`;
+G.forBlock['codi_cambiar_tamanio'] = (b,g) => `${spRef()}.cambiarTamanio(${g.valueToCode(b,'CHANGE',0)||10});\n`;
+G.forBlock['codi_fijar_color']     = (b)   => `${spRef()}.fijarColor("${b.getFieldValue('COLOR')}");\n`;
+G.forBlock['codi_ir_a_capa']       = (b,g) => `${spRef()}.fijarCapa(${g.valueToCode(b,'CAPA',0)||0});\n`;
+G.forBlock['codi_tamanio']         = ()    => [`${spRef()}.size`, 0];
+G.forBlock['codi_disfraz_nombre']  = ()    => [`${spRef()}.disfraz`, 0];
+
+// Sonido
+G.forBlock['codi_sonido']  = (b)   => `_tocarSonido("${b.getFieldValue('SND')}");\n`;
+G.forBlock['codi_nota']    = (b,g) => `_tocarNota(${g.valueToCode(b,'FREQ',0)||440},${g.valueToCode(b,'DUR',0)||0.5});\n`;
+G.forBlock['codi_volumen']       = (b,g) => `_volumen=${g.valueToCode(b,'VOL',0)||100}/100;\n`;
+G.forBlock['codi_sonido_propio'] = (b)   => `window._reproducirSonidoPropio("${b.getFieldValue('NOMBRE')}");\n`;
+
+// Eventos
+G.forBlock['codi_bandera']      = (b,g) => `(async()=>{\n${g.statementToCode(b,'SUBSTACK')||g.statementToCode(b,'DO')||''}})()\n`;
+G.forBlock['codi_tecla']        = (b,g) => {
+  const t=b.getFieldValue('TECLA'), id=t.replace(/\W/g,'_');
+  return `document.addEventListener('keydown',async function _h${id}(e){if(e.key==="${t}"){document.removeEventListener('keydown',_h${id});\n${g.statementToCode(b,'SUBSTACK')||g.statementToCode(b,'DO')||''}}});\n`;
+};
+G.forBlock['codi_al_recibir']   = (b,g) => `_mensajes["${b.getFieldValue('MSG')}"]=async function(){\n${g.statementToCode(b,'SUBSTACK')||g.statementToCode(b,'DO')||''}};\n`;
+G.forBlock['codi_enviar']       = (b,g) => `{const _m=${g.valueToCode(b,'MSG',0)||'""'};if(_mensajes[_m])await _mensajes[_m]();}\n`;
+G.forBlock['codi_cuando_fondo'] = (b,g) => `_alCambiarFondo=async function(_n){if(_n==="${b.getFieldValue('FONDO')}"){\n${g.statementToCode(b,'SUBSTACK')||g.statementToCode(b,'DO')||''}}};\n`;
+G.forBlock['codi_al_iniciar_clon'] = (b,g) => `_alIniciarClon=async function(){\n${g.statementToCode(b,'SUBSTACK')||g.statementToCode(b,'DO')||''}};\n`;
+
+// Control
+G.forBlock['codi_esperar']       = (b,g) => `await _esperar(${g.valueToCode(b,'SECS',0)||1});\n`;
+G.forBlock['codi_repetir']       = (b,g) => `for(let _i=0;_i<(${g.valueToCode(b,'TIMES',0)||10});_i++){\n${g.statementToCode(b,'DO')}}\n`;
+G.forBlock['codi_siempre']       = (b,g) => `while(!_detenido){\n${g.statementToCode(b,'DO')}await _esperar(0.016);\n}\n`;
+G.forBlock['codi_si']            = (b,g) => `if(${g.valueToCode(b,'COND',0)||'false'}){\n${g.statementToCode(b,'DO')}}\n`;
+G.forBlock['codi_si_sino']       = (b,g) => `if(${g.valueToCode(b,'COND',0)||'false'}){\n${g.statementToCode(b,'DO')}}else{\n${g.statementToCode(b,'ELSE')}}\n`;
+G.forBlock['codi_esperar_hasta'] = (b,g) => `while(!(${g.valueToCode(b,'COND',0)||'false'})){await _esperar(0.05);}\n`;
+G.forBlock['codi_repetir_hasta'] = (b,g) => `while(!(${g.valueToCode(b,'COND',0)||'false'})){\n${g.statementToCode(b,'DO')}await _esperar(0.016);\n}\n`;
+G.forBlock['codi_detener']       = (b)   => {
+  const op=b.getFieldValue('OPCION');
+  if(op==='todo') return `_detenido=true;return;\n`;
+  if(op==='este') return `return;\n`;
+  return `/* detener otros scripts */\n`;
+};
+G.forBlock['codi_crear_clon']    = (b)   => {
+  const op=b.getFieldValue('OPCION');
+  const src=op==='yo'?'_sprites[_spriteActivo]':`_sprites["${op}"]`;
+  return `{const _o=${src};if(_o){const _c=new Sprite(_o.nombre+'_c'+Date.now(),_o.color,_o.disfraz);_c.x=_o.x;_c.y=_o.y;_c.dir=_o.dir;_c.esClon=true;_sprites[_c.nombre]=_c;agregarSpriteUI(_c.nombre,_c.disfraz);if(_alIniciarClon){const _prev=_spriteActivo;_spriteActivo=_c.nombre;await _alIniciarClon();_spriteActivo=_prev;}}}\n`;
+};
+G.forBlock['codi_borrar_clon']   = ()    => `{if(_sprites[_spriteActivo]?.esClon){delete _sprites[_spriteActivo];dibujarEscenario();return;}}\n`;
+
+// Sensores
+G.forBlock['codi_preguntar']       = (b,g) => `_respuesta=await _preguntar(${g.valueToCode(b,'Q',0)||'""'});\n`;
+G.forBlock['codi_respuesta']       = ()    => ['_respuesta', 0];
+G.forBlock['codi_tecla_pulsada']   = (b)   => [`_teclaPulsada("${b.getFieldValue('TECLA')}")`, 0];
+G.forBlock['codi_tocando_mouse']   = ()    => [`${spRef()}.tocandoMouse()`, 0];
+G.forBlock['codi_click_mouse']     = ()    => ['_ratonPresionado', 0];
+G.forBlock['codi_tocando_borde']   = ()    => [`${spRef()}.tocandoBorde()`, 0];
+G.forBlock['codi_tocando_sprite']  = (b)   => [`${spRef()}.tocandoSprite("${b.getFieldValue('SPRITE')}")`, 0];
+G.forBlock['codi_tocando_color']   = (b)   => [`${spRef()}.tocandoColor("${b.getFieldValue('COLOR')}")`, 0];
+G.forBlock['codi_color_toca_color']= (b)   => [`false /* color toca color: requiere análisis avanzado de píxeles */`, 0];
+G.forBlock['codi_temporizador']    = ()    => ['((Date.now()-_timerStart)/1000)', 0];
+G.forBlock['codi_reset_timer']     = ()    => `_timerStart=Date.now();\n`;
+G.forBlock['codi_raton_x']         = ()    => ['_ratonX', 0];
+G.forBlock['codi_raton_y']         = ()    => ['_ratonY', 0];
+
+// Sprites
+G.forBlock['codi_crear_sprite'] = (b) => {
+  const n=b.getFieldValue('NOMBRE'), d=b.getFieldValue('DISFRAZ');
+  const col=COLORES_SPRITE[Object.keys(_sprites).length%COLORES_SPRITE.length];
+  return `_sprites["${n}"]=new Sprite("${n}","${col}","${d}");agregarSpriteUI("${n}","${d}");\n`;
+};
+G.forBlock['codi_usar_sprite']  = (b) => `_spriteActivo="${b.getFieldValue('SPRITE')}";\n`;
+
+// Puntuación
+G.forBlock['codi_fijar_puntos'] = (b,g) => `_setPuntos(${g.valueToCode(b,'N',0)||0});\n`;
+G.forBlock['codi_sumar_puntos'] = (b,g) => `_cambiarPuntos(${g.valueToCode(b,'N',0)||1});\n`;
+G.forBlock['codi_puntos']       = ()    => ['_puntos', 0];
+
+// Datos
+G.forBlock['codi_guardar_dato'] = (b,g) => `_datos.guardar("${b.getFieldValue('CLAVE')}",${g.valueToCode(b,'VALOR',0)||'""'});\n`;
+G.forBlock['codi_cargar_dato']  = (b)   => [`_datos.cargar("${b.getFieldValue('CLAVE')}")`, 0];
+
+// Arduino
+G.forBlock['codi_arduino_conectar'] = (b,g) => `await _arduinoApi.conectar(${g.valueToCode(b,'PUERTO',0)||'""'});\n`;
+G.forBlock['codi_arduino_enviar']   = (b,g) => `await _arduinoApi.enviar(${g.valueToCode(b,'MSG',0)||'""'});\n`;
+G.forBlock['codi_arduino_leer']     = ()    => ['(await _arduinoApi.leer())', 0];
+G.forBlock['codi_arduino_dw']       = (b,g) => `await _arduinoApi.digitalEscribir(${g.valueToCode(b,'PIN',0)||0},${g.valueToCode(b,'VALOR',0)||0}===1);\n`;
+G.forBlock['codi_arduino_dr']       = (b,g) => [`(await _arduinoApi.digitalLeer(${g.valueToCode(b,'PIN',0)||0}))`, 0];
+G.forBlock['codi_arduino_ar']       = (b,g) => [`(await _arduinoApi.analogLeer(${g.valueToCode(b,'PIN',0)||0}))`, 0];
+G.forBlock['codi_arduino_aw']       = (b,g) => `await _arduinoApi.analogEscribir(${g.valueToCode(b,'PIN',0)||0},${g.valueToCode(b,'VALOR',0)||0});\n`;
+G.forBlock['codi_arduino_servo']    = (b,g) => `await _arduinoApi.servo(${g.valueToCode(b,'PIN',0)||9},${g.valueToCode(b,'ANGULO',0)||90});\n`;
+
+// ══════════════════════════════════════════════════════════
+// TOOLBOX
+// ══════════════════════════════════════════════════════════
+const toolbox = {
+  kind:'categoryToolbox',
+  contents:[
+    { kind:'category', name:'Movimiento', colour:'#4C97FF', contents:[
+      {kind:'block',type:'codi_mover',           inputs:{STEPS:{shadow:{type:'math_number',fields:{NUM:10}}}}},
+      {kind:'block',type:'codi_girar_der',        inputs:{DEGREES:{shadow:{type:'math_number',fields:{NUM:15}}}}},
+      {kind:'block',type:'codi_girar_izq',        inputs:{DEGREES:{shadow:{type:'math_number',fields:{NUM:15}}}}},
+      {kind:'block',type:'codi_ir_a_opcion'},
+      {kind:'block',type:'codi_ir_a',             inputs:{X:{shadow:{type:'math_number',fields:{NUM:0}}},Y:{shadow:{type:'math_number',fields:{NUM:0}}}}},
+      {kind:'block',type:'codi_ir_al_centro'},
+      {kind:'block',type:'codi_deslizar_a',       inputs:{SECS:{shadow:{type:'math_number',fields:{NUM:1}}},X:{shadow:{type:'math_number',fields:{NUM:0}}},Y:{shadow:{type:'math_number',fields:{NUM:0}}}}},
+      {kind:'block',type:'codi_cambiar_x',        inputs:{DX:{shadow:{type:'math_number',fields:{NUM:10}}}}},
+      {kind:'block',type:'codi_cambiar_y',        inputs:{DY:{shadow:{type:'math_number',fields:{NUM:10}}}}},
+      {kind:'block',type:'codi_fijar_x',          inputs:{X:{shadow:{type:'math_number',fields:{NUM:0}}}}},
+      {kind:'block',type:'codi_fijar_y',          inputs:{Y:{shadow:{type:'math_number',fields:{NUM:0}}}}},
+      {kind:'block',type:'codi_apuntar_a',        inputs:{ANG:{shadow:{type:'math_number',fields:{NUM:90}}}}},
+      {kind:'block',type:'codi_apuntar_al_mouse'},
+      {kind:'block',type:'codi_rebotar'},
+      {kind:'block',type:'codi_pos_x'},
+      {kind:'block',type:'codi_pos_y'},
+      {kind:'block',type:'codi_direccion'},
+      {kind:'block',type:'codi_distancia_a'},
+    ]},
+    { kind:'category', name:'Apariencia', colour:'#9966FF', contents:[
+      {kind:'block',type:'codi_decir',            inputs:{MSG:{shadow:{type:'text',fields:{TEXT:'¡Hola!'}}}}},
+      {kind:'block',type:'codi_decir_seg',        inputs:{MSG:{shadow:{type:'text',fields:{TEXT:'¡Hola!'}}},SECS:{shadow:{type:'math_number',fields:{NUM:2}}}}},
+      {kind:'block',type:'codi_pensar',           inputs:{MSG:{shadow:{type:'text',fields:{TEXT:'Hmm...'}}}}},
+      {kind:'block',type:'codi_cambiar_disfraz'},
+      {kind:'block',type:'codi_disfraz_siguiente'},
+      {kind:'block',type:'codi_cambiar_fondo'},
+      {kind:'block',type:'codi_fondo_num',        inputs:{NUM:{shadow:{type:'math_number',fields:{NUM:1}}}}},
+      {kind:'block',type:'codi_fondo_actual'},
+      {kind:'block',type:'codi_fondo_color'},
+      {kind:'block',type:'codi_mostrar'},
+      {kind:'block',type:'codi_esconder'},
+      {kind:'block',type:'codi_fijar_tamanio',    inputs:{SIZE:{shadow:{type:'math_number',fields:{NUM:100}}}}},
+      {kind:'block',type:'codi_cambiar_tamanio',  inputs:{CHANGE:{shadow:{type:'math_number',fields:{NUM:10}}}}},
+      {kind:'block',type:'codi_fijar_color'},
+      {kind:'block',type:'codi_ir_a_capa',        inputs:{CAPA:{shadow:{type:'math_number',fields:{NUM:1}}}}},
+      {kind:'block',type:'codi_tamanio'},
+      {kind:'block',type:'codi_disfraz_nombre'},
+    ]},
+    { kind:'category', name:'Sonido', colour:'#CF63CF', contents:[
+      {kind:'block',type:'codi_sonido'},
+      {kind:'block',type:'codi_nota',  inputs:{FREQ:{shadow:{type:'math_number',fields:{NUM:440}}},DUR:{shadow:{type:'math_number',fields:{NUM:0.5}}}}},
+      {kind:'block',type:'codi_volumen',inputs:{VOL:{shadow:{type:'math_number',fields:{NUM:80}}}}},
+      {kind:'block',type:'codi_sonido_propio'},
+    ]},
+    { kind:'category', name:'Eventos', colour:'#FFAB19', contents:[
+      {kind:'block',type:'codi_bandera'},
+      {kind:'block',type:'codi_tecla'},
+      {kind:'block',type:'codi_al_recibir'},
+      {kind:'block',type:'codi_enviar',       inputs:{MSG:{shadow:{type:'text',fields:{TEXT:'inicio'}}}}},
+      {kind:'block',type:'codi_cuando_fondo'},
+      {kind:'block',type:'codi_al_iniciar_clon'},
+    ]},
+    { kind:'category', name:'Control', colour:'#FF8C1A', contents:[
+      {kind:'block',type:'codi_esperar',       inputs:{SECS:{shadow:{type:'math_number',fields:{NUM:1}}}}},
+      {kind:'block',type:'codi_repetir',       inputs:{TIMES:{shadow:{type:'math_number',fields:{NUM:10}}}}},
+      {kind:'block',type:'codi_siempre'},
+      {kind:'block',type:'codi_si'},
+      {kind:'block',type:'codi_si_sino'},
+      {kind:'block',type:'codi_esperar_hasta'},
+      {kind:'block',type:'codi_repetir_hasta'},
+      {kind:'block',type:'codi_detener'},
+      {kind:'block',type:'codi_crear_clon'},
+      {kind:'block',type:'codi_borrar_clon'},
+    ]},
+    { kind:'category', name:'Sensores', colour:'#5CB1D6', contents:[
+      {kind:'block',type:'codi_preguntar',       inputs:{Q:{shadow:{type:'text',fields:{TEXT:'¿Cuál es tu nombre?'}}}}},
+      {kind:'block',type:'codi_respuesta'},
+      {kind:'block',type:'codi_tecla_pulsada'},
+      {kind:'block',type:'codi_tocando_mouse'},
+      {kind:'block',type:'codi_click_mouse'},
+      {kind:'block',type:'codi_tocando_borde'},
+      {kind:'block',type:'codi_tocando_sprite'},
+      {kind:'block',type:'codi_tocando_color'},
+      {kind:'block',type:'codi_color_toca_color'},
+      {kind:'block',type:'codi_temporizador'},
+      {kind:'block',type:'codi_reset_timer'},
+      {kind:'block',type:'codi_raton_x'},
+      {kind:'block',type:'codi_raton_y'},
+    ]},
+    { kind:'category', name:'Operadores', colour:'#59C059', contents:[
+      {kind:'block',type:'math_arithmetic', fields:{OP:'ADD'},   inputs:{A:{shadow:{type:'math_number',fields:{NUM:0}}},B:{shadow:{type:'math_number',fields:{NUM:0}}}}},
+      {kind:'block',type:'math_arithmetic', fields:{OP:'MINUS'}, inputs:{A:{shadow:{type:'math_number',fields:{NUM:0}}},B:{shadow:{type:'math_number',fields:{NUM:0}}}}},
+      {kind:'block',type:'math_arithmetic', fields:{OP:'MULTIPLY'},inputs:{A:{shadow:{type:'math_number',fields:{NUM:0}}},B:{shadow:{type:'math_number',fields:{NUM:0}}}}},
+      {kind:'block',type:'math_arithmetic', fields:{OP:'DIVIDE'}, inputs:{A:{shadow:{type:'math_number',fields:{NUM:0}}},B:{shadow:{type:'math_number',fields:{NUM:1}}}}},
+      {kind:'block',type:'math_random_int', inputs:{FROM:{shadow:{type:'math_number',fields:{NUM:1}}},TO:{shadow:{type:'math_number',fields:{NUM:10}}}}},
+      {kind:'block',type:'logic_compare',   fields:{OP:'EQ'}},
+      {kind:'block',type:'logic_compare',   fields:{OP:'GT'}},
+      {kind:'block',type:'logic_compare',   fields:{OP:'LT'}},
+      {kind:'block',type:'logic_operation', fields:{OP:'AND'}},
+      {kind:'block',type:'logic_operation', fields:{OP:'OR'}},
+      {kind:'block',type:'logic_negate'},
+      {kind:'block',type:'text_join'},
+      {kind:'block',type:'text_length'},
+      {kind:'block',type:'math_round'},
+      {kind:'block',type:'math_single'},
+    ]},
+    { kind:'category', name:'Variables',   colour:'#FF8C1A', custom:'VARIABLE'},
+    { kind:'category', name:'Mis bloques', colour:'#FF6680', custom:'PROCEDURE'},
+    { kind:'sep'},
+    { kind:'category', name:'Sprites',     colour:'#FF6680', contents:[
+      {kind:'block',type:'codi_crear_sprite'},
+      {kind:'block',type:'codi_usar_sprite'},
+    ]},
+    { kind:'category', name:'Puntuación',  colour:'#FF8C1A', contents:[
+      {kind:'block',type:'codi_fijar_puntos', inputs:{N:{shadow:{type:'math_number',fields:{NUM:0}}}}},
+      {kind:'block',type:'codi_sumar_puntos', inputs:{N:{shadow:{type:'math_number',fields:{NUM:1}}}}},
+      {kind:'block',type:'codi_puntos'},
+    ]},
+    { kind:'category', name:'Datos',       colour:'#8855AA', contents:[
+      {kind:'block',type:'codi_guardar_dato', inputs:{VALOR:{shadow:{type:'text',fields:{TEXT:''}}}}},
+      {kind:'block',type:'codi_cargar_dato'},
+    ]},
+    { kind:'category', name:'🔌 Arduino',  colour:'#00979D', contents:[
+      {kind:'label', text:'── Conexión ──'},
+      {kind:'block',type:'codi_arduino_conectar', inputs:{PUERTO:{shadow:{type:'text',fields:{TEXT:'COM3'}}}}},
+      {kind:'label', text:'── Digital ──'},
+      {kind:'block',type:'codi_arduino_dw',    inputs:{PIN:{shadow:{type:'math_number',fields:{NUM:13}}}}},
+      {kind:'block',type:'codi_arduino_dr',    inputs:{PIN:{shadow:{type:'math_number',fields:{NUM:2}}}}},
+      {kind:'label', text:'── Analógico / PWM ──'},
+      {kind:'block',type:'codi_arduino_ar',    inputs:{PIN:{shadow:{type:'math_number',fields:{NUM:0}}}}},
+      {kind:'block',type:'codi_arduino_aw',    inputs:{PIN:{shadow:{type:'math_number',fields:{NUM:9}}},VALOR:{shadow:{type:'math_number',fields:{NUM:128}}}}},
+      {kind:'label', text:'── Servo ──'},
+      {kind:'block',type:'codi_arduino_servo', inputs:{PIN:{shadow:{type:'math_number',fields:{NUM:9}}},ANGULO:{shadow:{type:'math_number',fields:{NUM:90}}}}},
+      {kind:'label', text:'── Serial ──'},
+      {kind:'block',type:'codi_arduino_enviar', inputs:{MSG:{shadow:{type:'text',fields:{TEXT:'hola'}}}}},
+      {kind:'block',type:'codi_arduino_leer'},
+    ]},
+  ]
+};
+
+// ══════════════════════════════════════════════════════════
+// WORKSPACE
+// ══════════════════════════════════════════════════════════
+// Traducir mensajes de procedimientos al español
+if (typeof Blockly.Msg !== 'undefined') {
+  Blockly.Msg['PROCEDURES_DEFNORETURN_TITLE']    = 'para';
+  Blockly.Msg['PROCEDURES_DEFRETURN_TITLE']      = 'para';
+  Blockly.Msg['PROCEDURES_DEFNORETURN_DO']       = 'hacer';
+  Blockly.Msg['PROCEDURES_DEFRETURN_DO']         = 'hacer';
+  Blockly.Msg['PROCEDURES_DEFRETURN_RETURN']     = 'devolver';
+  Blockly.Msg['PROCEDURES_CALLNORETURN_HELPURL'] = '';
+  Blockly.Msg['PROCEDURES_CALLRETURN_HELPURL']   = '';
+  Blockly.Msg['PROCEDURES_DEFNORETURN_COMMENT']  = 'Describí este bloque...';
+  Blockly.Msg['PROCEDURES_DEFNORETURN_PROCEDURE'] = 'nombre del bloque';
+  Blockly.Msg['PROCEDURES_BEFORE_PARAMS']        = 'con:';
+  Blockly.Msg['PROCEDURES_CALL_BEFORE_PARAMS']   = 'con:';
+  Blockly.Msg['PROCEDURES_DEFNORETURN_TOOLTIP']  = 'Crea un bloque sin valor de retorno.';
+  Blockly.Msg['PROCEDURES_DEFRETURN_TOOLTIP']    = 'Crea un bloque con valor de retorno.';
+  Blockly.Msg['PROCEDURES_ALLOW_STATEMENTS']     = 'permitir instrucciones';
+  Blockly.Msg['PROCEDURES_DEF_DUPLICATE_WARNING'] = 'Atención: este bloque tiene parámetros duplicados.';
+  Blockly.Msg['PROCEDURES_CALLNORETURN_TOOLTIP'] = 'Ejecuta el bloque definido por el usuario.';
+  Blockly.Msg['PROCEDURES_CALLRETURN_TOOLTIP']   = 'Ejecuta el bloque y usa el valor devuelto.';
+  Blockly.Msg['PROCEDURES_MUTATORCONTAINER_TITLE'] = 'parámetros';
+  Blockly.Msg['PROCEDURES_MUTATORARG_TITLE']     = 'nombre del parámetro:';
+  Blockly.Msg['PROCEDURES_MUTATORARG_TOOLTIP']   = 'Agrega un parámetro al bloque.';
+  Blockly.Msg['PROCEDURES_HIGHLIGHT_DEF']        = 'Resaltar definición del bloque';
+  Blockly.Msg['PROCEDURES_CREATE_DO']            = 'Crear bloque %1';
+  Blockly.Msg['PROCEDURES_IFRETURN_TOOLTIP']     = 'Si un valor es verdadero, devuelve un segundo valor.';
+  Blockly.Msg['PROCEDURES_IFRETURN_WARNING']     = 'Atención: este bloque solo puede usarse dentro de un bloque con retorno.';
+  // Variables
+  Blockly.Msg['NEW_VARIABLE']                    = 'Crear variable...';
+  Blockly.Msg['NEW_VARIABLE_TITLE']              = 'Nombre de la nueva variable:';
+  Blockly.Msg['VARIABLE_ALREADY_EXISTS']         = 'Ya existe una variable llamada "%1".';
+  Blockly.Msg['DELETE_VARIABLE']                 = 'Eliminar la variable "%1"';
+  Blockly.Msg['DELETE_VARIABLE_CONFIRMATION']    = '¿Eliminar %1 usos de la variable "%2"?';
+  Blockly.Msg['RENAME_VARIABLE']                 = 'Renombrar variable...';
+  Blockly.Msg['RENAME_VARIABLE_TITLE']           = 'Renombrar todas las "%1" variables a:';
+  Blockly.Msg['VARIABLES_DEFAULT_NAME']          = 'elemento';
+  Blockly.Msg['VARIABLES_GET_CREATE_SET']        = 'Crear "fijar %1"';
+  Blockly.Msg['VARIABLES_SET_CREATE_GET']        = 'Crear "obtener %1"';
+  Blockly.Msg['VARIABLES_GET_TOOLTIP']           = 'Devuelve el valor de esta variable.';
+  Blockly.Msg['VARIABLES_SET_TOOLTIP']           = 'Fija el valor de esta variable.';
+  Blockly.Msg['VARIABLES_SET_TITLE']             = 'fijar %1 a';
+  Blockly.Msg['VARIABLES_GET_TITLE']             = '%1';
+  // Contexto menú
+  Blockly.Msg['DUPLICATE_BLOCK']                 = 'Duplicar';
+  Blockly.Msg['ADD_COMMENT']                     = 'Agregar comentario';
+  Blockly.Msg['REMOVE_COMMENT']                  = 'Eliminar comentario';
+  Blockly.Msg['EXTERNAL_INPUTS']                 = 'Entradas externas';
+  Blockly.Msg['INLINE_INPUTS']                   = 'Entradas en línea';
+  Blockly.Msg['DELETE_BLOCK']                    = 'Eliminar bloque';
+  Blockly.Msg['DELETE_X_BLOCKS']                 = 'Eliminar %1 bloques';
+  Blockly.Msg['DELETE_ALL_BLOCKS']               = '¿Eliminar todos los %1 bloques?';
+  Blockly.Msg['CLEAN_UP']                        = 'Ordenar bloques';
+  Blockly.Msg['COLLAPSE_BLOCK']                  = 'Contraer bloque';
+  Blockly.Msg['EXPAND_BLOCK']                    = 'Expandir bloque';
+  Blockly.Msg['DISABLE_BLOCK']                   = 'Desactivar bloque';
+  Blockly.Msg['ENABLE_BLOCK']                    = 'Activar bloque';
+  Blockly.Msg['HELP']                            = 'Ayuda';
+  Blockly.Msg['UNDO']                            = 'Deshacer';
+  Blockly.Msg['REDO']                            = 'Rehacer';
+}
+
+const workspace = Blockly.inject('blocklyDiv', {
+  toolbox,
+  grid:  {spacing:20,length:3,colour:'#ddd',snap:true},
+  zoom:  {controls:true,wheel:true,startScale:1.0,maxScale:3,minScale:0.3},
+  move:  {scrollbars:true,drag:true},
+  sounds:false,
+  renderer:'zelos'
+});
+
+// ══════════════════════════════════════════════════════════
+// API PARA C#
+// ══════════════════════════════════════════════════════════
+window.codiBlockly = {
+  obtenerXml() { return Blockly.Xml.domToText(Blockly.Xml.workspaceToDom(workspace)); },
+  cargarXml(xml) { workspace.clear(); Blockly.Xml.domToWorkspace(Blockly.utils.xml.textToDom(xml),workspace); },
+  limpiarArea() { workspace.clear(); },
+  setZoom(s)    { workspace.setScale(s); workspace.scrollCenter(); },
+
+  async ejecutar() {
+    _detenido=false; _mensajes={}; _alIniciarClon=null; _alCambiarFondo=null;
+    _setPuntos(0); limpiarConsola();
+    // Resetear sprite principal
+    const jug=_sprites['Jugador'];
+    if(jug){jug.x=0;jug.y=0;jug.dir=90;jug.visible=true;jug.size=100;jug.texto='';jug.disfraz='perrito';jug.capa=0;}
+    // Eliminar sprites creados dinámicamente (no el Jugador)
+    for(const k of Object.keys(_sprites)) if(k!=='Jugador') delete _sprites[k];
+    document.getElementById('sprites-lista').innerHTML='<div class="sprite-chip activo" onclick="seleccionarSprite(\'Jugador\')">🐶 Jugador</div>';
+    _spriteActivo='Jugador';
+    _fondoActual=0;
+    dibujarEscenario();
+    const codigo=Blockly.JavaScript.workspaceToCode(workspace);
+    window.chrome?.webview?.postMessage(JSON.stringify({tipo:'codigoGenerado',codigo}));
+    try { await eval(`(async()=>{\n${codigo}\n})()`); }
+    catch(err) { escribirConsola('❌ '+err.message,'error'); window.chrome?.webview?.postMessage(JSON.stringify({tipo:'error',descripcion:err.message})); }
+  },
+
+  detener()       { _detenido=true; },
+  iniciarDebug()  {},
+  detenerDebug()  {},
+  pasoSiguiente() {}
+};
+
+workspace.addChangeListener((e)=>{
+  if([Blockly.Events.BLOCK_CHANGE,Blockly.Events.BLOCK_CREATE,
+      Blockly.Events.BLOCK_DELETE,Blockly.Events.BLOCK_MOVE].includes(e.type)){
+    window.chrome?.webview?.postMessage(JSON.stringify({tipo:'codigoGenerado',codigo:Blockly.JavaScript.workspaceToCode(workspace)}));
+    window.chrome?.webview?.postMessage(JSON.stringify({tipo:'proyectoModificado'}));
+  }
+});
+
+// ══════════════════════════════════════════════════════════
+// RESIZE
+// ══════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════
+// EDITOR DE DISFRACES
+// ══════════════════════════════════════════════════════════
+const _editorCanvas  = document.getElementById('editor-canvas');
+const _editorCtx     = _editorCanvas.getContext('2d');
+const _previewCanvas = document.getElementById('editor-preview');
+const _previewCtx    = _previewCanvas.getContext('2d');
+
+let _editorHerramienta = 'pincel';
+let _editorDibujando   = false;
+let _editorUltX = 0, _editorUltY = 0;
+let _editorStartX = 0, _editorStartY = 0;
+let _editorHistorial = [];
+let _editorRedo = [];
+let _editorSnapShot = null; // snapshot para formas en vivo
+const _disfracesPropios = {}; // nombre → dataURL
+
+function editorPosicion(e) {
+  const r = _editorCanvas.getBoundingClientRect();
+  const scX = _editorCanvas.width  / r.width;
+  const scY = _editorCanvas.height / r.height;
+  return { x: Math.floor((e.clientX - r.left) * scX), y: Math.floor((e.clientY - r.top) * scY) };
+}
+
+function setTool(t) {
+  _editorHerramienta = t;
+  document.querySelectorAll('.etool').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('tool-'+t);
+  if(btn) btn.classList.add('active');
+}
+
+function editorColor()  { return document.getElementById('editor-color').value; }
+function editorGrosor() { return parseInt(document.getElementById('editor-grosor').value); }
+
+function editorGuardarHistorial() {
+  _editorHistorial.push(_editorCanvas.toDataURL());
+  _editorRedo = [];
+  if(_editorHistorial.length > 40) _editorHistorial.shift();
+}
+
+function editorDeshacer() {
+  if(_editorHistorial.length === 0) return;
+  _editorRedo.push(_editorCanvas.toDataURL());
+  const img = new Image(); img.src = _editorHistorial.pop();
+  img.onload = () => { _editorCtx.clearRect(0,0,_editorCanvas.width,_editorCanvas.height); _editorCtx.drawImage(img,0,0); editorActualizarPreview(); };
+}
+
+function editorRehacer() {
+  if(_editorRedo.length === 0) return;
+  _editorHistorial.push(_editorCanvas.toDataURL());
+  const img = new Image(); img.src = _editorRedo.pop();
+  img.onload = () => { _editorCtx.clearRect(0,0,_editorCanvas.width,_editorCanvas.height); _editorCtx.drawImage(img,0,0); editorActualizarPreview(); };
+}
+
+function editorMouseDown(e) {
+  const {x,y} = editorPosicion(e);
+  _editorDibujando = true;
+  _editorUltX = x; _editorUltY = y;
+  _editorStartX = x; _editorStartY = y;
+  editorGuardarHistorial();
+  _editorSnapShot = _editorCtx.getImageData(0,0,_editorCanvas.width,_editorCanvas.height);
+
+  if(_editorHerramienta === 'relleno') { editorRelleno(x,y,editorColor()); _editorDibujando=false; return; }
+  if(_editorHerramienta === 'texto') {
+    _editorCtx.font = `bold ${editorGrosor()*4+8}px "Segoe UI"`;
+    _editorCtx.fillStyle = editorColor();
+    _editorCtx.fillText(document.getElementById('editor-texto-input').value, x, y);
+    editorActualizarPreview(); _editorDibujando=false; return;
+  }
+  if(_editorHerramienta === 'pincel' || _editorHerramienta === 'borrador') {
+    _editorCtx.beginPath(); _editorCtx.moveTo(x,y);
+  }
+}
+
+function editorMouseMove(e) {
+  if(!_editorDibujando) return;
+  const {x,y} = editorPosicion(e);
+  const color = editorColor(), grosor = editorGrosor();
+
+  if(_editorHerramienta === 'pincel') {
+    _editorCtx.strokeStyle = color; _editorCtx.lineWidth = grosor;
+    _editorCtx.lineCap = 'round'; _editorCtx.lineJoin = 'round';
+    _editorCtx.lineTo(x,y); _editorCtx.stroke();
+    _editorCtx.beginPath(); _editorCtx.moveTo(x,y);
+  } else if(_editorHerramienta === 'borrador') {
+    _editorCtx.strokeStyle = 'rgba(0,0,0,0)'; _editorCtx.lineWidth = grosor*2;
+    _editorCtx.lineCap = 'round'; _editorCtx.lineJoin = 'round';
+    _editorCtx.globalCompositeOperation = 'destination-out';
+    _editorCtx.lineTo(x,y); _editorCtx.stroke();
+    _editorCtx.beginPath(); _editorCtx.moveTo(x,y);
+    _editorCtx.globalCompositeOperation = 'source-over';
+  } else if(_editorHerramienta === 'linea') {
+    _editorCtx.putImageData(_editorSnapShot,0,0);
+    _editorCtx.strokeStyle=color; _editorCtx.lineWidth=grosor; _editorCtx.lineCap='round';
+    _editorCtx.beginPath(); _editorCtx.moveTo(_editorStartX,_editorStartY); _editorCtx.lineTo(x,y); _editorCtx.stroke();
+  } else if(_editorHerramienta === 'rect') {
+    _editorCtx.putImageData(_editorSnapShot,0,0);
+    _editorCtx.strokeStyle=color; _editorCtx.lineWidth=grosor;
+    _editorCtx.strokeRect(_editorStartX,_editorStartY,x-_editorStartX,y-_editorStartY);
+  } else if(_editorHerramienta === 'circulo') {
+    _editorCtx.putImageData(_editorSnapShot,0,0);
+    const rx=Math.abs(x-_editorStartX)/2, ry=Math.abs(y-_editorStartY)/2;
+    const cx=_editorStartX+(x-_editorStartX)/2, cy=_editorStartY+(y-_editorStartY)/2;
+    _editorCtx.strokeStyle=color; _editorCtx.lineWidth=grosor;
+    _editorCtx.beginPath(); _editorCtx.ellipse(cx,cy,rx,ry,0,0,Math.PI*2); _editorCtx.stroke();
+  }
+  editorActualizarPreview();
+  _editorUltX=x; _editorUltY=y;
+}
+
+function editorMouseUp(e) {
+  _editorDibujando = false;
+  _editorCtx.beginPath();
+}
+
+// Relleno (flood fill)
+function editorRelleno(sx, sy, colorNuevo) {
+  editorGuardarHistorial();
+  const W=_editorCanvas.width, H=_editorCanvas.height;
+  const imgData = _editorCtx.getImageData(0,0,W,H);
+  const data = imgData.data;
+  const idx = (sy*W+sx)*4;
+  const r0=data[idx],g0=data[idx+1],b0=data[idx+2],a0=data[idx+3];
+
+  // Convertir color hex a RGBA
+  const cr=parseInt(colorNuevo.slice(1,3),16), cg=parseInt(colorNuevo.slice(3,5),16), cb=parseInt(colorNuevo.slice(5,7),16);
+  if(r0===cr&&g0===cg&&b0===cb&&a0===255) return;
+
+  const stack=[sx+sy*W];
+  const visited=new Uint8Array(W*H);
+
+  while(stack.length) {
+    const pos=stack.pop(); if(visited[pos]) continue; visited[pos]=1;
+    const i=pos*4;
+    if(Math.abs(data[i]-r0)>30||Math.abs(data[i+1]-g0)>30||Math.abs(data[i+2]-b0)>30||Math.abs(data[i+3]-a0)>30) continue;
+    data[i]=cr; data[i+1]=cg; data[i+2]=cb; data[i+3]=255;
+    const x=pos%W, y=Math.floor(pos/W);
+    if(x>0) stack.push(pos-1); if(x<W-1) stack.push(pos+1);
+    if(y>0) stack.push(pos-W); if(y<H-1) stack.push(pos+W);
+  }
+  _editorCtx.putImageData(imgData,0,0);
+  editorActualizarPreview();
+}
+
+function editorActualizarPreview() {
+  _previewCtx.clearRect(0,0,64,64);
+  _previewCtx.drawImage(_editorCanvas,0,0,64,64);
+}
+
+function editorNuevo() {
+  if(!confirm('¿Limpiar el canvas?')) return;
+  const sz = parseInt(document.getElementById('editor-tamano').value);
+  _editorCanvas.width = sz; _editorCanvas.height = sz;
+  _editorCtx.clearRect(0,0,sz,sz);
+  editorActualizarPreview();
+  _editorHistorial=[]; _editorRedo=[];
+}
+
+function editorGuardar() {
+  const nombre = document.getElementById('editor-nombre').value.trim() || 'MiDisfraz';
+  const dataURL = _editorCanvas.toDataURL('image/png');
+  _disfracesPropios[nombre] = dataURL;
+
+  // Registrar en el sistema de sprites
+  DISFRACES[nombre] = {
+    nombre: nombre,
+    fn: (ctx, color) => {
+      const img = _imgCache[nombre];
+      if(img) { ctx.drawImage(img, -img.width/2, -img.height/2); }
+    }
+  };
+
+  // Crear imagen cacheada
+  if(!window._imgCache) window._imgCache = {};
+  const img = new Image(); img.src = dataURL;
+  window._imgCache[nombre] = img;
+
+  // Actualizar lista visual
+  editorActualizarLista();
+
+  // Actualizar dropdown en bloques de Blockly
+  _actualizarDropdownDisfraces();
+
+  escribirConsola(`✓ Disfraz "${nombre}" guardado`, 'info');
+}
+
+function editorActualizarLista() {
+  const lista = document.getElementById('editor-lista');
+  lista.innerHTML = '';
+  for(const [nombre, url] of Object.entries(_disfracesPropios)) {
+    const wrap = document.createElement('div');
+    wrap.style.cssText='display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;';
+    wrap.title = nombre;
+    wrap.onclick = () => editorCargarDisfraz(nombre);
+    const img = document.createElement('img');
+    img.src=url; img.style.cssText='width:36px;height:36px;image-rendering:pixelated;border:1px solid #444;border-radius:3px;';
+    const lbl = document.createElement('span');
+    lbl.textContent = nombre.substring(0,8); lbl.style.cssText='font-size:9px;color:#888;';
+    wrap.appendChild(img); wrap.appendChild(lbl);
+    lista.appendChild(wrap);
+  }
+}
+
+function editorCargarDisfraz(nombre) {
+  const url = _disfracesPropios[nombre];
+  if(!url) return;
+  const img = new Image();
+  img.onload = () => {
+    _editorCanvas.width = img.width; _editorCanvas.height = img.height;
+    _editorCtx.clearRect(0,0,img.width,img.height);
+    _editorCtx.drawImage(img,0,0);
+    editorActualizarPreview();
+    document.getElementById('editor-nombre').value = nombre;
+  };
+  img.src = url;
+}
+
+function editorImportarImagen(input) {
+  const file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const sz = parseInt(document.getElementById('editor-tamano').value);
+      _editorCanvas.width = sz; _editorCanvas.height = sz;
+      editorGuardarHistorial();
+      _editorCtx.drawImage(img,0,0,sz,sz);
+      editorActualizarPreview();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+
+function _actualizarDropdownDisfraces() {
+  // Agregar disfraces propios a los bloques de Blockly
+  const extras = Object.keys(_disfracesPropios).map(n=>[n,n]);
+  // No podemos modificar el toolbox en tiempo real fácilmente,
+  // pero sí podemos agregar a los bloques ya en el workspace
+  // que usen un campo editable en vez de dropdown
+}
+
+function editorAbrir() {
+  const panel = document.getElementById('panel-editor');
+  panel.style.display = 'flex';
+  panel.style.height = '340px';
+  editorActualizarPreview();
+}
+
+function editorCerrar() {
+  document.getElementById('panel-editor').style.display = 'none';
+  window.chrome?.webview?.postMessage(JSON.stringify({tipo:'editorCerrado'}));
+}
+
+// Atajos de teclado para el editor
+document.addEventListener('keydown', e => {
+  if(document.getElementById('panel-editor').style.display==='none') return;
+  if(e.ctrlKey && e.key==='z') { editorDeshacer(); e.preventDefault(); }
+  if(e.ctrlKey && e.key==='y') { editorRehacer(); e.preventDefault(); }
+});
+
+// Actualizar label del grosor
+document.getElementById('editor-grosor').addEventListener('input', function(){
+  document.getElementById('editor-grosor-val').textContent = this.value;
+});
+
+// Cambiar tamaño del canvas cuando cambia el selector
+document.getElementById('editor-tamano').addEventListener('change', function(){
+  const sz = parseInt(this.value);
+  const prev = _editorCtx.getImageData(0,0,_editorCanvas.width,_editorCanvas.height);
+  _editorCanvas.width = sz; _editorCanvas.height = sz;
+  _editorCtx.putImageData(prev,0,0);
+  editorActualizarPreview();
+});
+
+// API para C# - abrir editor desde el botón de la barra
+window.abrirEditorDisfraces = editorAbrir;
+
+// ══════════════════════════════════════════════════════════
+// GRABADOR DE SONIDOS
+// ══════════════════════════════════════════════════════════
+let _grabMediaRecorder = null;
+let _grabChunks        = [];
+let _grabBlob          = null;
+let _grabAudioURL      = null;
+let _grabInterval      = null;
+let _grabSegundos      = 0;
+let _grabStream        = null;
+let _grabAnalyser      = null;
+let _grabAnimFrame     = null;
+const _sonidosPropios  = {};
+
+function grabadorAbrir() {
+  document.getElementById('panel-grabador').style.display = 'flex';
+  document.getElementById('panel-grabador').style.height  = '260px';
+}
+
+function grabadorCerrar() {
+  grabadorDetener();
+  grabadorPararReproduccion();
+  document.getElementById('panel-grabador').style.display = 'none';
+}
+
+async function grabadorIniciar() {
+  try {
+    _grabStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch(e) {
+    document.getElementById('grab-estado').textContent = '❌ Sin acceso al micrófono';
+    document.getElementById('grab-estado').style.color = '#ff4444';
+    return;
+  }
+
+  // Analizador de forma de onda
+  const actx     = _getAudio();
+  _grabAnalyser  = actx.createAnalyser();
+  _grabAnalyser.fftSize = 512;
+  const src      = actx.createMediaStreamSource(_grabStream);
+  src.connect(_grabAnalyser);
+
+  _grabChunks = [];
+  _grabMediaRecorder = new MediaRecorder(_grabStream);
+  _grabMediaRecorder.ondataavailable = e => { if(e.data.size>0) _grabChunks.push(e.data); };
+  _grabMediaRecorder.onstop = grabadorProcesarBlob;
+  _grabMediaRecorder.start(100);
+
+  // Timer
+  _grabSegundos = 0;
+  _grabInterval = setInterval(() => {
+    _grabSegundos++;
+    const m = String(Math.floor(_grabSegundos/60)).padStart(2,'0');
+    const s = String(_grabSegundos%60).padStart(2,'0');
+    document.getElementById('grab-tiempo').textContent = `${m}:${s}`;
+  }, 1000);
+
+  document.getElementById('grab-estado').textContent = '🔴 Grabando...';
+  document.getElementById('grab-estado').style.color = '#ff4444';
+  document.getElementById('btn-grabar').disabled      = true;
+  document.getElementById('btn-parar-grab').disabled  = false;
+
+  _grabDibujarOnda();
+}
+
+function grabadorDetener() {
+  if(_grabMediaRecorder && _grabMediaRecorder.state !== 'inactive') {
+    _grabMediaRecorder.stop();
+  }
+  if(_grabStream) { _grabStream.getTracks().forEach(t=>t.stop()); _grabStream=null; }
+  if(_grabInterval) { clearInterval(_grabInterval); _grabInterval=null; }
+  if(_grabAnimFrame) { cancelAnimationFrame(_grabAnimFrame); _grabAnimFrame=null; }
+
+  document.getElementById('grab-estado').textContent = 'Grabación detenida';
+  document.getElementById('grab-estado').style.color = '#888';
+  document.getElementById('btn-grabar').disabled      = false;
+  document.getElementById('btn-parar-grab').disabled  = true;
+}
+
+function grabadorProcesarBlob() {
+  _grabBlob    = new Blob(_grabChunks, { type:'audio/webm' });
+  _grabAudioURL = URL.createObjectURL(_grabBlob);
+  const audio  = document.getElementById('grab-audio');
+  audio.src    = _grabAudioURL;
+  audio.onloadedmetadata = () => {
+    const d = Math.round(audio.duration);
+    document.getElementById('grab-duracion').textContent = `Duración: ${d}s`;
+  };
+  document.getElementById('btn-reproducir').disabled = false;
+  document.getElementById('grab-estado').textContent = '✓ Listo para reproducir o guardar';
+  document.getElementById('grab-estado').style.color = '#44ff88';
+  _grabDibujarFormaDeOnda();
+}
+
+function grabadorReproducir() {
+  const audio = document.getElementById('grab-audio');
+  if(!audio.src) return;
+  audio.currentTime = 0;
+  audio.play();
+  document.getElementById('btn-reproducir').disabled = true;
+  document.getElementById('btn-parar-rep').disabled  = false;
+  audio.onended = () => {
+    document.getElementById('btn-reproducir').disabled = false;
+    document.getElementById('btn-parar-rep').disabled  = true;
+  };
+}
+
+function grabadorPararReproduccion() {
+  const audio = document.getElementById('grab-audio');
+  audio.pause(); audio.currentTime = 0;
+  document.getElementById('btn-reproducir').disabled = false;
+  document.getElementById('btn-parar-rep').disabled  = true;
+}
+
+function grabadorImportar(input) {
+  const file = input.files[0]; if(!file) return;
+  _grabBlob     = file;
+  _grabAudioURL = URL.createObjectURL(file);
+  const audio   = document.getElementById('grab-audio');
+  audio.src     = _grabAudioURL;
+  audio.onloadedmetadata = () => {
+    const d = Math.round(audio.duration);
+    document.getElementById('grab-duracion').textContent = `Duración: ${d}s`;
+  };
+  document.getElementById('grab-archivo').textContent  = file.name;
+  document.getElementById('btn-reproducir').disabled   = false;
+  document.getElementById('grab-estado').textContent   = `✓ Archivo cargado: ${file.name}`;
+  document.getElementById('grab-estado').style.color   = '#44ff88';
+  // Dibujar forma de onda básica
+  _grabDibujarFormaDeOndaPlana();
+  input.value = '';
+}
+
+function grabadorGuardar() {
+  if(!_grabBlob) { alert('Primero grabá o importá un sonido.'); return; }
+  const nombre = document.getElementById('grab-nombre').value.trim() || 'MiSonido';
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const dataURL = e.target.result;
+    _sonidosPropios[nombre] = dataURL;
+
+    // Registrar en el sistema de sonidos
+    _tocarSonidoPropio[nombre] = () => {
+      const audio = new Audio(dataURL);
+      audio.volume = _volumen;
+      audio.play().catch(()=>{});
+    };
+
+    grabadorActualizarLista();
+    escribirConsola(`✓ Sonido "${nombre}" guardado`, 'info');
+  };
+  reader.readAsDataURL(_grabBlob);
+}
+
+function grabadorActualizarLista() {
+  const lista = document.getElementById('grab-lista');
+  lista.innerHTML = '';
+  for(const nombre of Object.keys(_sonidosPropios)) {
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;align-items:center;gap:6px;padding:4px;background:#1a1a3a;border-radius:4px;';
+    div.innerHTML = `
+      <span style="font-size:16px;">🔊</span>
+      <span style="font-size:11px;color:#ccc;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${nombre}</span>
+      <button onclick="_reproducirSonidoPropio('${nombre}')" style="padding:2px 6px;font-size:10px;background:#1a3a5a;color:white;border:none;border-radius:3px;cursor:pointer;">▶</button>
+    `;
+    lista.appendChild(div);
+  }
+}
+
+window._tocarSonidoPropio = {};
+window._reproducirSonidoPropio = function(nombre) {
+  const fn = _tocarSonidoPropio[nombre];
+  if(fn) fn();
+};
+
+// Forma de onda en tiempo real (mientras graba)
+function _grabDibujarOnda() {
+  if(!_grabAnalyser) return;
+  const canvas = document.getElementById('grab-canvas');
+  const ctx    = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const buf = new Uint8Array(_grabAnalyser.frequencyBinCount);
+
+  function draw() {
+    _grabAnimFrame = requestAnimationFrame(draw);
+    _grabAnalyser.getByteTimeDomainData(buf);
+    ctx.fillStyle = '#0a0a1a'; ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle = '#CF63CF'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    const step = W / buf.length;
+    for(let i=0;i<buf.length;i++) {
+      const y = (buf[i]/128.0) * H/2;
+      i===0 ? ctx.moveTo(0,y) : ctx.lineTo(i*step, y);
+    }
+    ctx.stroke();
+  }
+  draw();
+}
+
+// Forma de onda estática (después de grabar)
+async function _grabDibujarFormaDeOnda() {
+  if(!_grabBlob) return;
+  try {
+    const arrBuf  = await _grabBlob.arrayBuffer();
+    const actx    = new AudioContext();
+    const decoded = await actx.decodeAudioData(arrBuf);
+    const data    = decoded.getChannelData(0);
+    const canvas  = document.getElementById('grab-canvas');
+    const ctx     = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.fillStyle = '#0a0a1a'; ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle = '#CF63CF'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    const step = Math.ceil(data.length / W);
+    for(let x=0;x<W;x++) {
+      let min=1, max=-1;
+      for(let j=0;j<step;j++) {
+        const d = data[x*step+j] || 0;
+        if(d<min) min=d; if(d>max) max=d;
+      }
+      ctx.moveTo(x, (1+min)*H/2);
+      ctx.lineTo(x, (1+max)*H/2);
+    }
+    ctx.stroke();
+  } catch(e) { _grabDibujarFormaDeOndaPlana(); }
+}
+
+function _grabDibujarFormaDeOndaPlana() {
+  const canvas = document.getElementById('grab-canvas');
+  const ctx    = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.fillStyle = '#0a0a1a'; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle = '#CF63CF'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(0,H/2); ctx.lineTo(W,H/2); ctx.stroke();
+}
+
+window.abrirGrabador = grabadorAbrir;
+
+// ══════════════════════════════════════════════════════════
+// TUTORIALES INTERACTIVOS
+// ══════════════════════════════════════════════════════════
+const TUTORIALES = [
+  {
+    id: 'intro',
+    nombre: 'Introducción a CodiBloques',
+    emoji: '🎓',
+    descripcion: 'Aprendé los conceptos básicos',
+    pasos: [
+      { emoji:'👋', titulo:'¡Bienvenido a CodiBloques!', texto:'CodiBloques te permite crear programas arrastrando y soltando bloques de colores, ¡sin escribir código!', hint:'' },
+      { emoji:'🧩', titulo:'Los bloques', texto:'Los bloques son las instrucciones de tu programa. Cada color representa una categoría distinta: azul para movimiento, violeta para apariencia, naranja para eventos...', hint:'Mirá el panel de categorías a la izquierda del editor.' },
+      { emoji:'🏁', titulo:'El bloque de inicio', texto:'Todo programa empieza con el bloque "al presionar 🏁". Es como el botón de START de tu programa. Cuando apretás ▶ Ejecutar, ese bloque se activa.', hint:'Buscá el bloque verde "al presionar 🏁" en la categoría Eventos.' },
+      { emoji:'🐶', titulo:'El escenario', texto:'El escenario es donde tu programa cobra vida. El perrito es tu personaje principal (sprite). Podés hacerlo moverse, hablar, cambiar de disfraz y mucho más.', hint:'El escenario está a la derecha del área de bloques.' },
+      { emoji:'▶', titulo:'¡Listo para empezar!', texto:'Probá arrastrar el bloque "al presionar 🏁" al área de programación y conectar abajo un bloque "decir ¡Hola!". Después apretá el botón ▶ Ejecutar.', hint:'Tip: arrastrá los bloques desde el panel izquierdo al área central.' },
+    ]
+  },
+  {
+    id: 'movimiento',
+    nombre: 'Mover el personaje',
+    emoji: '🚀',
+    descripcion: 'Aprendé a controlar el movimiento',
+    pasos: [
+      { emoji:'🎮', titulo:'Controlando el personaje', texto:'Con los bloques de Movimiento podés hacer que el personaje se mueva, gire, y vaya a distintas posiciones del escenario.', hint:'' },
+      { emoji:'↕️', titulo:'El sistema de coordenadas', texto:'El escenario tiene un sistema de ejes X e Y. El centro es (0,0). X positivo va hacia la derecha, X negativo a la izquierda. Y positivo va arriba, Y negativo abajo.', hint:'Mirá las coordenadas en la barra inferior del escenario.' },
+      { emoji:'⌨️', titulo:'Control con teclado', texto:'Usá el bloque "¿tecla presionada?" dentro de un "por siempre" para controlar el personaje con el teclado. Las flechas son las más usadas.', hint:'Categoría Sensores → ¿tecla presionada?' },
+      { emoji:'🔄', titulo:'Rebotar en los bordes', texto:'El bloque "si está en el borde, rebotar" hace que el personaje rebote cuando llega al límite del escenario, ¡como una pelota!', hint:'Categoría Movimiento → si está en el borde, rebotar.' },
+      { emoji:'✅', titulo:'¡Probalo!', texto:'Armá este programa: "al presionar 🏁" → "por siempre" → "si flecha derecha presionada, cambiar x en 5" + "si flecha izquierda, cambiar x en -5" + "rebotar".', hint:'¡Usá el bloque si/sino para las dos condiciones!' },
+    ]
+  },
+  {
+    id: 'variables',
+    nombre: 'Variables y puntuación',
+    emoji: '🏆',
+    descripcion: 'Guardá y usá datos en tu programa',
+    pasos: [
+      { emoji:'📦', titulo:'¿Qué es una variable?', texto:'Una variable es una caja donde guardás información: un número, un texto, una puntuación. Podés cambiar su valor durante el programa.', hint:'' },
+      { emoji:'🏅', titulo:'La puntuación', texto:'CodiBloques tiene un sistema de puntuación listo para usar. El bloque "sumar N a la puntuación" aumenta los puntos y se ve en pantalla automáticamente.', hint:'Categoría Puntuación → sumar a la puntuación.' },
+      { emoji:'📝', titulo:'Crear una variable', texto:'En la categoría Variables podés crear tus propias variables. Hacé clic en "Crear variable..." y dale un nombre descriptivo como "vidas" o "velocidad".', hint:'Categoría Variables → Crear variable...' },
+      { emoji:'🔢', titulo:'Usar la variable', texto:'Una vez creada, podés usar los bloques "fijar [variable] a" para cambiar su valor, y el bloque con el nombre de la variable para leerla.', hint:'Las variables aparecen en el panel después de crearlas.' },
+      { emoji:'🎯', titulo:'¡Desafío!', texto:'Creá un programa que use una variable "vidas" que empiece en 3. Cada vez que el personaje toque el borde, restá 1 vida y mostralo con "decir".', hint:'Usá: fijar vidas a 3 → por siempre → si tocando borde → decir vidas.' },
+    ]
+  },
+  {
+    id: 'eventos',
+    nombre: 'Eventos y mensajes',
+    emoji: '📡',
+    descripcion: 'Coordiná múltiples acciones',
+    pasos: [
+      { emoji:'⚡', titulo:'¿Qué son los eventos?', texto:'Los eventos son cosas que pasan y disparan acciones en tu programa. Por ejemplo: presionar una tecla, hacer clic, o recibir un mensaje de otro bloque.', hint:'' },
+      { emoji:'📨', titulo:'Enviar y recibir mensajes', texto:'Con "enviar mensaje" y "al recibir mensaje" podés coordinar distintas partes de tu programa. Es como mandar una señal de un personaje a otro.', hint:'Categoría Eventos → enviar y al recibir.' },
+      { emoji:'🎭', titulo:'Múltiples scripts', texto:'Podés tener varios bloques "al presionar 🏁" en el área. Todos se ejecutan al mismo tiempo cuando apretás Ejecutar, ¡como actores en una obra!', hint:'Arrastrá otro bloque "al presionar 🏁" al área.' },
+      { emoji:'🔄', titulo:'Cambios de escena', texto:'El bloque "cuando el fondo cambie a" dispara acciones cuando cambia el fondo. Usalo para crear niveles o escenas distintas en tu juego.', hint:'Categoría Eventos → cuando el fondo cambie a.' },
+      { emoji:'🌟', titulo:'¡Proyecto completo!', texto:'Con eventos podés crear juegos completos. Intentá hacer: nivel 1 con fondo azul, al recibir "ganar" cambiar al fondo verde y mostrar "¡Ganaste!".', hint:'¡Combiná "enviar mensaje" con "cuando el fondo cambie a"!' },
+    ]
+  },
+  {
+    id: 'clones',
+    nombre: 'Clones y múltiples sprites',
+    emoji: '👥',
+    descripcion: 'Creá copias dinámicas de sprites',
+    pasos: [
+      { emoji:'🧬', titulo:'¿Qué son los clones?', texto:'Los clones son copias de un sprite que podés crear durante la ejecución del programa. Son perfectos para enemigos, balas, o partículas.', hint:'' },
+      { emoji:'📋', titulo:'Crear un clon', texto:'El bloque "crear clon de mí mismo" (en Control) genera una copia del sprite actual. Cada clon es independiente y puede hacer sus propias cosas.', hint:'Categoría Control → crear clon de mí mismo.' },
+      { emoji:'🏃', titulo:'Al comenzar como clon', texto:'El bloque "al comenzar como clon" define qué hace cada clon cuando nace. Ponele que se mueva hacia abajo o en una dirección aleatoria.', hint:'Categoría Eventos → al comenzar como clon.' },
+      { emoji:'💥', titulo:'Borrar el clon', texto:'Usá "borrar este clon" para eliminar un clon cuando ya no lo necesitás, por ejemplo cuando toca el borde o al personaje principal.', hint:'Categoría Control → borrar este clon.' },
+      { emoji:'🎮', titulo:'¡Lluvia de objetos!', texto:'Probá este patrón: "al presionar 🏁" → "por siempre" → "crear clon" → "esperar 0.5 seg". Y en "al comenzar como clon" → "ir a posición aleatoria" → "por siempre" → "cambiar y en -3".', hint:'¡Combiná clones con detección de colisiones!' },
+    ]
+  }
+];
+
+let _tutActual = null;
+let _tutPasoActual = 0;
+
+function abrirMenuTutoriales() {
+  const lista = document.getElementById('lista-tutoriales');
+  lista.innerHTML = '';
+  TUTORIALES.forEach(t => {
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px;background:#0d0d25;border-radius:8px;cursor:pointer;border:1px solid #222;';
+    div.innerHTML = `
+      <span style="font-size:28px;">${t.emoji}</span>
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:bold;color:white;">${t.nombre}</div>
+        <div style="font-size:11px;color:#888;margin-top:2px;">${t.descripcion} · ${t.pasos.length} pasos</div>
+      </div>
+      <button style="padding:6px 14px;background:#4C97FF;color:white;border:none;border-radius:5px;cursor:pointer;font-size:12px;">Iniciar</button>
+    `;
+    div.querySelector('button').onclick = () => {
+      document.getElementById('menu-tutoriales').style.display = 'none';
+      iniciarTutorial(t.id);
+    };
+    div.onclick = (e) => { if(e.target.tagName !== 'BUTTON') div.querySelector('button').click(); };
+    div.onmouseenter = () => div.style.background = '#151535';
+    div.onmouseleave = () => div.style.background = '#0d0d25';
+    lista.appendChild(div);
+  });
+  document.getElementById('menu-tutoriales').style.display = 'flex';
+}
+
+function iniciarTutorial(id) {
+  _tutActual = TUTORIALES.find(t => t.id === id);
+  if(!_tutActual) return;
+  _tutPasoActual = 0;
+  document.getElementById('panel-tutorial').style.display = 'flex';
+  tutorialMostrarPaso();
+}
+
+function tutorialMostrarPaso() {
+  if(!_tutActual) return;
+  const paso  = _tutActual.pasos[_tutPasoActual];
+  const total = _tutActual.pasos.length;
+
+  document.getElementById('tut-titulo').textContent   = paso.titulo;
+  document.getElementById('tut-texto').textContent    = paso.texto;
+  document.getElementById('tut-emoji').textContent    = paso.emoji;
+  document.getElementById('tut-progreso').textContent = `${_tutActual.nombre} · Paso ${_tutPasoActual+1} de ${total}`;
+
+  // Hint
+  const hintDiv = document.getElementById('tut-hint');
+  if(paso.hint) {
+    document.getElementById('tut-hint-texto').textContent = paso.hint;
+    hintDiv.style.display = 'block';
+  } else {
+    hintDiv.style.display = 'none';
+  }
+
+  // Barra de progreso
+  document.getElementById('tut-barra').style.width = `${(((_tutPasoActual+1)/total)*100)}%`;
+
+  // Puntos de navegación
+  const puntos = document.getElementById('tut-puntos');
+  puntos.innerHTML = '';
+  for(let i=0;i<total;i++) {
+    const d = document.createElement('div');
+    d.style.cssText = `width:8px;height:8px;border-radius:50%;background:${i===_tutPasoActual?'#4C97FF':'#333'};cursor:pointer;`;
+    d.onclick = () => { _tutPasoActual=i; tutorialMostrarPaso(); };
+    puntos.appendChild(d);
+  }
+
+  // Botones
+  document.getElementById('tut-btn-anterior').disabled = _tutPasoActual === 0;
+  document.getElementById('tut-btn-anterior').style.opacity = _tutPasoActual === 0 ? '0.4' : '1';
+
+  const btnSig = document.getElementById('tut-btn-siguiente');
+  if(_tutPasoActual === total - 1) {
+    btnSig.textContent = '✓ Finalizar';
+    btnSig.style.background = '#1a8a3a';
+  } else {
+    btnSig.textContent = 'Siguiente →';
+    btnSig.style.background = '#4C97FF';
+  }
+}
+
+function tutorialSiguiente() {
+  if(!_tutActual) return;
+  if(_tutPasoActual < _tutActual.pasos.length - 1) {
+    _tutPasoActual++;
+    tutorialMostrarPaso();
+  } else {
+    tutorialCerrar();
+    escribirConsola(`✓ Tutorial "${_tutActual.nombre}" completado!`, 'info');
+  }
+}
+
+function tutorialAnterior() {
+  if(_tutPasoActual > 0) { _tutPasoActual--; tutorialMostrarPaso(); }
+}
+
+function tutorialCerrar() {
+  document.getElementById('panel-tutorial').style.display = 'none';
+  _tutActual = null;
+}
+
+window.abrirTutoriales = abrirMenuTutoriales;
+
+
+
+window.addEventListener('resize',()=>{redimensionarCanvas();Blockly.svgResize(workspace);});
+setTimeout(()=>{redimensionarCanvas();Blockly.svgResize(workspace);},150);
+</script>
+</body>
+</html>

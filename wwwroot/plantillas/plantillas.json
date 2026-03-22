@@ -1,0 +1,42 @@
+[
+  {
+    "archivo": "nave_espacial.codi",
+    "nombre": "Nave Espacial",
+    "descripcion": "Controlá una nave con las flechas del teclado. Base para crear tu propio juego espacial.",
+    "categoria": "Juegos",
+    "nivel": "Principiante",
+    "emoji": "🚀"
+  },
+  {
+    "archivo": "esquivar.codi",
+    "nombre": "Juego de Esquivar",
+    "descripcion": "Mové el personaje con las flechas y esquivá obstáculos. Agregá enemigos con clones.",
+    "categoria": "Juegos",
+    "nivel": "Intermedio",
+    "emoji": "🐶"
+  },
+  {
+    "archivo": "quiz.codi",
+    "nombre": "Quiz de Preguntas",
+    "descripcion": "Un robot hace preguntas y evalúa las respuestas. Modificá las preguntas y respuestas.",
+    "categoria": "Educativo",
+    "nivel": "Principiante",
+    "emoji": "🤖"
+  },
+  {
+    "archivo": "animacion.codi",
+    "nombre": "Animación de Personaje",
+    "descripcion": "Un personaje que cambia de disfraz y se mueve. Base para animaciones.",
+    "categoria": "Animación",
+    "nivel": "Principiante",
+    "emoji": "🎭"
+  },
+  {
+    "archivo": "historia.codi",
+    "nombre": "Historia Interactiva",
+    "descripcion": "Una historia con decisiones del usuario. Expandila con más preguntas y caminos.",
+    "categoria": "Narrativa",
+    "nivel": "Principiante",
+    "emoji": "👻"
+  }
+]

@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>CodiBloques - Escenario</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { width:100%; height:100%; overflow:hidden; background:#1a1a2e; }
+    canvas { display:block; width:100%; height:100%; }
+    #info {
+      position:absolute; bottom:8px; left:8px;
+      font:12px "Consolas",monospace; color:#aaa;
+      background:rgba(0,0,0,0.5); padding:4px 8px; border-radius:4px;
+      pointer-events:none;
+    }
+    #dialogo {
+      display:none; position:absolute; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      background:white; border-radius:8px; padding:16px; width:280px;
+      box-shadow:0 4px 20px rgba(0,0,0,0.5);
+    }
+    #dialogo label { display:block; margin-bottom:8px; font:14px "Segoe UI",sans-serif; color:#333; }
+    #dialogo input { width:100%; padding:6px; border:1px solid #ccc; border-radius:4px; font-size:14px; }
+    #dialogo button { margin-top:8px; width:100%; padding:8px; background:#4C97FF; color:white; border:none; border-radius:4px; cursor:pointer; font-size:14px; }
+  </style>
+</head>
+<body>
+<canvas id="escenario"></canvas>
+<div id="info">x: 0  y: 0  dir: 90°</div>
+<div id="dialogo">
+  <label id="preguntaTxt">¿Cuál es tu nombre?</label>
+  <input id="respuestaInput" type="text" placeholder="Escribí tu respuesta..." />
+  <button onclick="responder()">OK</button>
+</div>
+
+<script>
+const canvas = document.getElementById('escenario');
+const ctx = canvas.getContext('2d');
+const info = document.getElementById('info');
+
+function resize() {
+  // Usar el tamaño real del documento, no window (funciona dentro de WebView2)
+  canvas.width  = document.documentElement.clientWidth  || 300;
+  canvas.height = document.documentElement.clientHeight || 300;
+  dibujar();
+}
+
+// Resize al cargar y cuando cambia el tamaño
+window.addEventListener('resize', resize);
+document.addEventListener('DOMContentLoaded', resize);
+resize();
+
+// Estado del sprite
+const estado = { x:0, y:0, dir:90, visible:true, size:100, texto:'', tipo:'decir' };
+
+function dibujar() {
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // Fondo
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0, 0, W, H);
+
+  // Cuadrícula sutil
+  const cx = W / 2, cy = H / 2;
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  for (let x = cx % 40; x < W; x += 40) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let y = cy % 40; y < H; y += 40) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+
+  // Ejes
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(W, cy); ctx.stroke();
+
+  if (!estado.visible) return;
+
+  // Posición en canvas (centro = 0,0 del escenario)
+  const px = cx + estado.x;
+  const py = cy - estado.y;
+  const escala = estado.size / 100;
+
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate((estado.dir - 90) * Math.PI / 180);
+  ctx.scale(escala, escala);
+
+  dibujarPerrito(ctx);
+
+  ctx.restore();
+
+  // Burbuja de texto
+  if (estado.texto) {
+    const bx = px + 30, by = py - 60;
+    ctx.font = '13px "Segoe UI", sans-serif';
+    const w = Math.max(90, ctx.measureText(estado.texto).width + 24);
+    ctx.fillStyle = estado.tipo === 'pensar' ? '#e8e8ff' : 'white';
+    ctx.strokeStyle = '#aaa';
+    ctx.lineWidth = 1.5;
+    roundRect(ctx, bx, by - 28, w, 32, 8);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#333';
+    ctx.fillText(estado.texto, bx + 12, by - 8);
+  }
+
+  info.textContent = `x: ${Math.round(estado.x)}  y: ${Math.round(estado.y)}  dir: ${Math.round(estado.dir)}°`;
+}
+
+function dibujarPerrito(ctx) {
+  // ── Cola ──────────────────────────────────────────────────────────────────
+  ctx.strokeStyle = '#C8A882';
+  ctx.lineWidth = 7;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(18, 8);
+  ctx.quadraticCurveTo(34, -2, 30, -14);
+  ctx.stroke();
+
+  // ── Cuerpo ────────────────────────────────────────────────────────────────
+  ctx.fillStyle = '#C8A882';
+  ctx.beginPath();
+  ctx.ellipse(0, 8, 22, 26, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ── Patas delanteras ──────────────────────────────────────────────────────
+  ctx.fillStyle = '#C8A882';
+  ctx.beginPath(); ctx.roundRect(-18, 20, 13, 24, 4); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(5,  20, 13, 24, 4); ctx.fill();
+  // Patitas
+  ctx.fillStyle = '#B8966E';
+  ctx.beginPath(); ctx.ellipse(-12, 45, 8, 5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(12,  45, 8, 5, 0, 0, Math.PI * 2); ctx.fill();
+
+  // ── Cuello ────────────────────────────────────────────────────────────────
+  ctx.fillStyle = '#C8A882';
+  ctx.beginPath();
+  ctx.ellipse(0, -12, 16, 13, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ── Cabeza cuadrada (pitbull) ─────────────────────────────────────────────
+  ctx.fillStyle = '#D4B896';
+  ctx.beginPath();
+  ctx.roundRect(-22, -42, 44, 32, [7, 7, 5, 5]);
+  ctx.fill();
+
+  // ── Orejas recortadas ─────────────────────────────────────────────────────
+  ctx.fillStyle = '#B8966E';
+  ctx.beginPath(); // izquierda
+  ctx.moveTo(-22, -40);
+  ctx.lineTo(-30, -55);
+  ctx.lineTo(-16, -44);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath(); // derecha
+  ctx.moveTo(22, -40);
+  ctx.lineTo(30, -55);
+  ctx.lineTo(16, -44);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── Hocico ────────────────────────────────────────────────────────────────
+  ctx.fillStyle = '#E8CFA8';
+  ctx.beginPath();
+  ctx.ellipse(0, -22, 15, 11, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ── Nariz ─────────────────────────────────────────────────────────────────
+  ctx.fillStyle = '#2a1a0a';
+  ctx.beginPath();
+  ctx.ellipse(0, -30, 9, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#1a0a00';
+  ctx.beginPath(); ctx.ellipse(-4, -30, 3, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse( 4, -30, 3, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+
+  // ── Ojos ──────────────────────────────────────────────────────────────────
+  ctx.fillStyle = '#2a1a0a';
+  ctx.beginPath(); ctx.ellipse(-9, -36, 4.5, 4.5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse( 9, -36, 4.5, 4.5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'white';
+  ctx.beginPath(); ctx.arc(-7, -38, 1.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(11, -38, 1.5, 0, Math.PI * 2); ctx.fill();
+
+  // ── Cejas marcadas ────────────────────────────────────────────────────────
+  ctx.strokeStyle = '#8a6a4a';
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-15, -42); ctx.lineTo(-4, -40); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(15,  -42); ctx.lineTo( 4, -40); ctx.stroke();
+
+  // ── Boca ──────────────────────────────────────────────────────────────────
+  ctx.strokeStyle = '#3a2a1a';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(-7, -18);
+  ctx.quadraticCurveTo(0, -13, 7, -18);
+  ctx.stroke();
+
+  // ── Manchas ───────────────────────────────────────────────────────────────
+  ctx.fillStyle = 'rgba(150, 90, 40, 0.2)';
+  ctx.beginPath(); ctx.ellipse(9,  6, 10, 8, 0.3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(-6, 18, 7,  6, -0.2, 0, Math.PI * 2); ctx.fill();
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y);
+  ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r);
+  ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h);
+  ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r);
+  ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
+}
+
+// ── API para C# ───────────────────────────────────────────────────────────────
+window.actualizarSprite = function(data) {
+  Object.assign(estado, data);
+  dibujar();
+};
+
+window.mostrarBurbuja = function(texto, tipo) {
+  estado.texto = texto;
+  estado.tipo  = tipo || 'decir';
+  dibujar();
+  if (tipo !== 'permanente') {
+    setTimeout(() => { estado.texto = ''; dibujar(); }, 3000);
+  }
+};
+
+window.mostrarPregunta = function(texto) {
+  document.getElementById('preguntaTxt').textContent = texto;
+  document.getElementById('respuestaInput').value = '';
+  document.getElementById('dialogo').style.display = 'block';
+  document.getElementById('respuestaInput').focus();
+};
+
+function responder() {
+  const r = document.getElementById('respuestaInput').value;
+  document.getElementById('dialogo').style.display = 'none';
+  window.chrome?.webview?.postMessage(JSON.stringify({ tipo:'respuesta', valor:r }));
+}
+
+document.getElementById('respuestaInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') responder();
+});
+</script>
+</body>
+</html>
