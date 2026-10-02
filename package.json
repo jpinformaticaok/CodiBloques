@@ -1,0 +1,23 @@
+{
+  "name": "codibloques",
+  "productName": "CodiBloques",
+  "version": "1.0.0",
+  "description": "CodiBloques / Scratch 3.0 - Aplicacion de escritorio portable y totalmente offline para crear, editar y ejecutar proyectos Scratch 3.0 sin conexion a internet.",
+  "main": "desktop/main.cjs",
+  "author": "Juan Pablo Aguero <https://github.com/jpinformaticaok>",
+  "contributors": [
+    "Basado en Scratch GUI (c) Scratch Foundation - Licencia AGPL-3.0"
+  ],
+  "license": "AGPL-3.0-only",
+  "repository": "https://github.com/jpinformaticaok/codibloques",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win portable --x64",
+    "dist:dir": "electron-builder --win dir --x64"
+  },
+  "devDependencies": {
+    "electron": "^35.7.5",
+    "electron-builder": "^25.1.8"
+  }
+}

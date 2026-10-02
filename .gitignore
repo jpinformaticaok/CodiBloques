@@ -1,0 +1,8 @@
+node_modules/
+dist/
+dist-build.log
+.DS_Store
+Thumbs.db
+# El build offline de la GUI es pesado (~180MB): se copia localmente para
+# empaquetar pero no hace falta versionarlo. Descomentar para excluirlo de git:
+# gui/

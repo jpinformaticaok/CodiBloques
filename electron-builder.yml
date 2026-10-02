@@ -1,0 +1,32 @@
+appId: ok.jpinformaticaok.codibloques
+productName: CodiBloques
+copyright: Copyright © 2026 Juan Pablo Aguero (https://github.com/jpinformaticaok)
+directories:
+  output: dist
+  buildResources: build
+files:
+  - desktop/main.cjs
+  - package.json
+extraResources:
+  - from: gui
+    to: scratch-gui
+    filter:
+      - "**/*"
+  - from: extensions
+    to: extensions
+    filter:
+      - "**/*"
+asar: true
+win:
+  target:
+    - target: portable
+      arch:
+        - x64
+  artifactName: CodiBloques-Portable-${version}.exe
+portable:
+  artifactName: CodiBloques-Portable-${version}.exe
+  requestExecutionLevel: user
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: CodiBloques

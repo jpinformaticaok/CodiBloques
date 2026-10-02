@@ -1,0 +1,2 @@
+Pone aqui el icono de la app (`icon.ico` 256x256 + `icon.icns` si se compila para macOS).
+Sin icono se usa el predeterminado de Electron.

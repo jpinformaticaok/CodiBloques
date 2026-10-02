@@ -1,0 +1,1 @@
+{"name":"arduino-plugin","version":"0.1.0","status":"planificado","author":"Juan Pablo Aguero","github":"https://github.com/jpinformaticaok","requires":["firmata-en-placa","driver-usb-ch340-cp210x"],"blocks":["digitalWrite","digitalRead","analogRead","analogWrite-pwm","servo","ultrasonico"]}
