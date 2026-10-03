@@ -18,7 +18,11 @@ extraResources:
       - "**/*"
 asar: true
 win:
-  signAndEditExecutable: false
+  # Nota: signAndEditExecutable NO se desactiva. Esa opcion bloquea tambien
+  # rcedit, que es el que aplica el icono y los datos de version al .exe
+  # (sin ella el ejecutable se queda con el icono y "ProductName: Electron").
+  # La firma igual se omite sola porque no hay certificado configurado
+  # ("no signing info identified, signing is skipped").
   icon: build/icon.ico
   target:
     - target: portable

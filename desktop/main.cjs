@@ -171,6 +171,84 @@ function buildMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+/**
+ * Scratch instala window.onbeforeunload = leavePageConfirm, que devuelve true
+ * cuando hay cambios sin guardar. Electron respeta ese bloqueo y CANCELA el
+ * cierre sin mostrar ninguna ventana: por eso la app "no se cierra" y hay que
+ * matar el proceso a mano.
+ *
+ * Se intercepta el evento "close" (que siempre llega), se consulta al renderer
+ * si hay cambios sin guardar y recien ahi se decide:
+ *   - sin cambios  -> se cierra directo.
+ *   - con cambios  -> aviso en espanol; si el usuario confirma, se sale con
+ *     win.destroy(), que no ejecuta beforeunload y por lo tanto no se traba.
+ */
+function interceptClose(win) {
+  let forceClosing = false;
+  let asking = false;
+
+  // Red de seguridad: si Electron aun asi llega al bloqueo de beforeunload,
+  // se lo ignora para que la app nunca quede imposible de salir.
+  win.on('will-prevent-unload', (event) => {
+    log('will-prevent-unload: se ignora el bloqueo de Scratch');
+    event.preventDefault();
+  });
+
+  win.on('close', (e) => {
+    if (forceClosing) return; // ya decidido: dejar cerrar
+    e.preventDefault(); // corta ANTES del beforeunload de Scratch
+    if (asking) return; // ya hay un aviso abierto en pantalla
+
+    // Consulta al renderer: leavePageConfirm devuelve true si hay cambios.
+    const PROBE =
+      `(() => { try { const ev = {}; ` +
+      `const r = typeof window.onbeforeunload === 'function' ? window.onbeforeunload(ev) : false; ` +
+      `return r === true || ev.returnValue === true; } catch (err) { return false; } })()`;
+
+    const doClose = () => {
+      forceClosing = true;
+      log('cierre confirmado');
+      win.destroy(); // no ejecuta beforeunload: sale siempre
+    };
+
+    asking = true;
+    win.webContents
+      .executeJavaScript(PROBE, true)
+      .catch(() => false)
+      .then((unsaved) => {
+        asking = false;
+        log('close: cambios sin guardar = ' + unsaved);
+        if (!unsaved) {
+          doClose();
+          return null;
+        }
+        return dialog
+          .showMessageBox(win, {
+            type: 'warning',
+            title: APP_NAME,
+            message: 'Hay cambios sin guardar.',
+            detail:
+              'Si salis ahora, se pierden los cambios que no guardaste en un archivo .sb3.\n\n' +
+              'Para conservarlos usa Archivo > Guardar en tu computadora.',
+            buttons: ['Salir sin guardar', 'Seguir trabajando'],
+            defaultId: 1,
+            cancelId: 1,
+            noLink: true,
+          })
+          .then((res) => {
+            if (res.response === 0) doClose();
+            else log('close: usuario cancelo la salida');
+          });
+      })
+      .catch((err) => {
+        // Red de seguridad: ante cualquier error la app DEBE poder salir.
+        log('close: error consultando cambios, se fuerza salida: ' + err);
+        asking = false;
+        doClose();
+      });
+  });
+}
+
 function createWindow(port, forceEs) {
   const win = new BrowserWindow({
     width: 1280,
@@ -187,6 +265,7 @@ function createWindow(port, forceEs) {
     },
   });
   win.removeMenu();
+  interceptClose(win);
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('http://') || url.startsWith('https://')) shell.openExternal(url);
     return { action: 'deny' };

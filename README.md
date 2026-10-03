@@ -35,6 +35,23 @@ La app expone la ruta local `/plugins/` (carpeta `extensions/`) y el objeto
 extensiones (placas Arduino por USB-serial con Firmata) se carguen offline.
 Ver `extensions/arduino/README.md`.
 
+## Diagnostico
+
+- Log de la aplicacion: `%TEMP%\codibloques-exec.log` (fecha/hora, puerto,
+  pagina cargada y cada cierre, con el motivo: `cambios sin guardar = true/false`,
+  `cierre confirmado`, `usuario cancelo la salida`).
+- Si la app no cierra: se intercepta el evento `close` antes del
+  `beforeunload` de Scratch y se pregunta en espanol ("Salir sin guardar" /
+  "Seguir trabajando"). Confirmar cierra siempre; hay una red de seguridad
+  (`will-prevent-unload`) para que nunca quede imposible de salir.
+- Si `npm run dist` falla con `Cannot create symbolic link ... winCodeSign`:
+  es la extraccion del paquete de firma, que requiere privilegios de symlinks
+  en Windows. Solucion: extraerlo una vez a mano en
+  `%LOCALAPPDATA%\electron-builder\Cache\winCodeSign\winCodeSign-2.6.0`
+  (`7za x -bd <descarga>.7z -o<destino>`; solo fallan 2 symlinks de macOS,
+  que no hacen falta en Windows) y volver a correr `npm run dist`.
+  La firma se omite igualmente: `no signing info identified, signing is skipped`.
+
 ## Estructura
 
 ```
