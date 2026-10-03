@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 267 100" width="267" height="100">
+  <!-- CodiBloques Logo - Reemplaza este SVG con tu diseño -->
+  <!-- Proporción 2.67:1 (igual que el original Scratch) -->
+  <!-- Fondo transparente, colores claros para barra azul #4C97FF -->
+  
+  <!-- Fondo de referencia (borra esto) -->
+  <rect x="0" y="0" width="267" height="100" fill="none"/>
+  
+  <!-- Texto "CodiBloques" - Personaliza fuente, color, tamaño -->
+  <text x="133.5" y="60" 
+        font-family="Arial, Helvetica, sans-serif" 
+        font-weight="bold" 
+        font-size="32" 
+        fill="#FFFFFF" 
+        text-anchor="middle"
+        dominant-baseline="middle">
+    CodiBloques
+  </text>
+  
+  <!-- Subtítulo opcional -->
+  <text x="133.5" y="85" 
+        font-family="Arial, Helvetica, sans-serif" 
+        font-size="14" 
+        fill="#CCCCCC" 
+        text-anchor="middle"
+        dominant-baseline="middle">
+    Scratch 3.0 Offline
+  </text>
+  
+  <!-- Icono decorativo opcional (bloque) -->
+  <rect x="20" y="20" width="24" height="24" rx="4" fill="#4C97FF" opacity="0.9"/>
+  <text x="32" y="38" font-family="Arial" font-weight="bold" font-size="14" fill="white" text-anchor="middle" dominant-baseline="middle">CB</text>
+</svg>
