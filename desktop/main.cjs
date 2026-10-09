@@ -13,7 +13,7 @@ const http = require('node:http');
 const path = require('node:path');
 const fs = require('node:fs');
 const os = require('node:os');
-const { app, BrowserWindow, shell, dialog, Menu } = require('electron');
+const { app, BrowserWindow, shell, dialog, Menu, session } = require('electron');
 
 const APP_NAME = 'CodiBloques';
 const APP_VERSION = app.isPackaged
@@ -249,6 +249,46 @@ function interceptClose(win) {
   });
 }
 
+function interceptSaves(win) {
+  // "Guardar en tu compu" descarga un .sb3 via blob. Scratch nunca limpia
+  // projectChanged al hacerlo, por lo que leavePageConfirm seguia devolviendo
+  // true y la app seguia preguntando "¿salir sin guardar?" aunque acabaras de
+  // guardar. Se escucha la descarga y, SOLO si completa (no si se cancela el
+  // dialogo), se limpia el flag en el store de Redux del renderer.
+  session.defaultSession.on('will-download', (_event, item) => {
+    // El renderer levanto el flag justo antes de disparar la descarga.
+    win.webContents
+      .executeJavaScript('window.__codibloquesPendingSaveToComputer === true', true)
+      .catch(() => false)
+      .then((pending) => {
+        if (!pending) return; // no es un "Guardar en tu compu"
+        item.once('done', (_ev, state) => {
+          if (state === 'completed') {
+            log('save-to-computer: descarga completada, projectChanged = false');
+            win.webContents
+              .executeJavaScript(
+                `(() => { try { ` +
+                  `if (!window.__codibloquesStore) return 'no-store'; ` +
+                  `window.__codibloquesStore.dispatch({ type: 'scratch-gui/project-changed/SET_PROJECT_CHANGED', changed: false }); ` +
+                  `window.__codibloquesPendingSaveToComputer = false; ` +
+                  `return 'ok'; ` +
+                  `} catch (err) { return 'err:' + err; } })()`,
+                true
+              )
+              .then((r) => log('save-to-computer: dispatch result = ' + r))
+              .catch((err) => log('save-to-computer: error dispatch = ' + err));
+          } else {
+            // Cancelada o fallida: el proyecto sigue "modificado".
+            log('save-to-computer: descarga no completada (state=' + state + ')');
+            win.webContents
+              .executeJavaScript('window.__codibloquesPendingSaveToComputer = false', true)
+              .catch(() => {});
+          }
+        });
+      });
+  });
+}
+
 function createWindow(port, forceEs) {
   const win = new BrowserWindow({
     width: 1280,
@@ -265,7 +305,10 @@ function createWindow(port, forceEs) {
     },
   });
   win.removeMenu();
+  // La app arranca maximizada (request del usuario).
+  win.maximize();
   interceptClose(win);
+  interceptSaves(win);
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('http://') || url.startsWith('https://')) shell.openExternal(url);
     return { action: 'deny' };

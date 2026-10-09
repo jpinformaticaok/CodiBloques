@@ -10,6 +10,23 @@
  *         (ni sprites, ni sonidos, ni fondos se agregaban al escenario).
  *         Se fuerza false para que ProxyTool use FetchTool (fetch normal) con las
  *         URLs locales static/local-assets/.
+ * FIX 4/5: Traducir al español rioplatense los textos que Scratch deja en inglés
+ *         aunque el idioma sea español: el diálogo de borrado de objetos (FIX 4)
+ *         y el panel DEBUG de la barra de menú con sus 13 secciones (FIX 5).
+ *         Se reemplazan SOLO dentro de los bloques de locale "es" y "es-419".
+ * FIX 6: Textos del menú Archivo en argentino: "Cargar desde la compu" /
+ *         "Guardar en tu compu" (Scratch trae "desde tu ordenador" / "en tu ordenador").
+ * FIX 7: "Guardar en tu compu" debe limpiar el flag de cambios sin guardar.
+ *         SB3Downloader.downloadProject() solo arma el .sb3 y lo baja como blob;
+ *         nunca despacha setProjectUnchanged(), por lo que leavePageConfirm
+ *         (window.onbeforeunload) seguía devolviendo true y la app seguía
+ *         preguntando "¿salir sin guardar?" incluso justo después de guardar.
+ *         Paso 7a: exponer el store de Redux de AppStateWrapper en
+ *         window.__codibloquesStore. Paso 7b: levantar el flag
+ *         window.__codibloquesPendingSaveToComputer al disparar la descarga.
+ *         El dispatch real (projectChanged = false) lo hace desktop/main.cjs al
+ *         confirmarse la descarga (will-download + state === "completed"), para
+ *         no marcar como guardado si el usuario cancela el diálogo.
  *
  * Uso: node tools/patch-gui-bundle.cjs
  * El script es idempotente: puede ejecutarse varias veces sin duplicar parches.
@@ -180,8 +197,53 @@ for (const bundleName of BUNDLES) {
     'gui.debugModal.askForHelp.description1':
       'Si seguís trabado, podés pedirle ayuda a un compañero. Buscá un estudio de depuración o de ayuda, compartí tu proyecto y pedí ayuda en un comentario o en las notas del proyecto.',
     'gui.debugModal.askForHelp.description2':
-      'Pedile a una, dos o tres personas que prueben tu código, ¡porque cada persona puede tener otras perspectivas u otras soluciones!'
+      'Pedile a una, dos o tres personas que prueben tu código, ¡porque cada persona puede tener otras perspectivas u otras soluciones!',
+
+    // ===== FIX 6: Menú Archivo (argentinismos) =====
+    'gui.sharedMessages.loadFromComputerTitle': 'Cargar desde la compu',
+    'gui.menuBar.downloadToComputer': 'Guardar en tu compu'
   };
+
+  // ===== FIX 7: "Guardar en tu compu" debe limpiar el flag de cambios sin guardar =====
+  // SB3Downloader.downloadProject() solo arma el .sb3 y lo baja como blob; nunca
+  // despacha setProjectUnchanged(). Por eso leavePageConfirm (window.onbeforeunload)
+  // seguia devolviendo true y la app seguia preguntando "¿salir sin guardar?"
+  // incluso justo despues de guardar en la compu.
+  //
+  // Paso 1: exponer el store de Redux de AppStateWrapper en window.
+  const fix7StorePattern =
+    /this\.store = \(0,redux__WEBPACK_IMPORTED_MODULE_\d+__\.createStore\)\(reducer, initialState, enhancer\);/;
+  if (fix7StorePattern.test(src)) {
+    src = src.replace(
+      fix7StorePattern,
+      '$&\n      // CodiBloques FIX 7: exponer el store para que "Guardar en tu compu" pueda limpiar projectChanged\n      window.__codibloquesStore = this.store;'
+    );
+    console.log(`${bundleName} - FIX 7a: store de Redux expuesto en window.__codibloquesStore`);
+    changed++;
+  } else if (src.includes('window.__codibloquesStore = this.store')) {
+    console.log(`${bundleName} - FIX 7a: ya parcheado`);
+  } else {
+    console.log(`${bundleName} - FIX 7a: patrón no encontrado (no aplica)`);
+  }
+
+  // Paso 2: cuando el usuario pide "Guardar en tu compu", levantar un flag que
+  // desktop/main.cjs lee al confirmarse la descarga (will-download + completed)
+  // y que a su vez limpia projectChanged en el store. No se limpia aca mismo para
+  // no marcar como guardado si el usuario cancela el dialogo de guardado.
+  const fix7DownloadPattern =
+    /(downloadProject\(\) \{\n\s*this\.props\.saveProjectSb3\(\)\.then\(content => \{)([\s\S]{0,260}?\(0,_lib_download_blob__WEBPACK_IMPORTED_MODULE_\d+__\["default"\]\)\(this\.props\.projectFilename, content\);)/;
+  if (fix7DownloadPattern.test(src)) {
+    src = src.replace(
+      fix7DownloadPattern,
+      "$1\n      // CodiBloques FIX 7: avisar que se disparo un guardado en la compu (lo confirma main.cjs).\n      // Se setea ANTES de disparar la descarga para que will-download lo encuentre.\n      window.__codibloquesPendingSaveToComputer = true;$2"
+    );
+    console.log(`${bundleName} - FIX 7b: flag __codibloquesPendingSaveToComputer al guardar`);
+    changed++;
+  } else if (src.includes('__codibloquesPendingSaveToComputer = true')) {
+    console.log(`${bundleName} - FIX 7b: ya parcheado`);
+  } else {
+    console.log(`${bundleName} - FIX 7b: patrón no encontrado (no aplica)`);
+  }
 
   // Encuentra los límites de un bloque de locale: '\n  "es": { ... \n  "otro": {'
   // Las claves internas del bloque sangran 4 espacios, por lo que '\n  "' (2 espacios)

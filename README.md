@@ -44,6 +44,12 @@ Ver `extensions/arduino/README.md`.
   `beforeunload` de Scratch y se pregunta en espanol ("Salir sin guardar" /
   "Seguir trabajando"). Confirmar cierra siempre; hay una red de seguridad
   (`will-prevent-unload`) para que nunca quede imposible de salir.
+- "Guardar en tu compu" (menu Archivo) descarga el `.sb3` y **limpia** el flag
+  de cambios sin guardar, asi que al cerrar no vuelve a preguntar. En el log
+  aparece `save-to-computer: descarga completada, projectChanged = false`. Si
+  el usuario cancela el dialogo de guardado aparece
+  `save-to-computer: descarga no completada (state=cancelled)` y el proyecto
+  sigue contando como modificado (comportamiento correcto).
 - Si `npm run dist` falla con `Cannot create symbolic link ... winCodeSign`:
   es la extraccion del paquete de firma, que requiere privilegios de symlinks
   en Windows. Solucion: extraerlo una vez a mano en
