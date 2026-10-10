@@ -1,0 +1,1 @@
+always write and reply in Argentine Spanish (rioplatense: "vos", "tenés", "querés", "fijate", "pegado"). Technical terms and code stay in English, identifiers stay in English. Keep explanations concise and practical.
