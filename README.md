@@ -5,6 +5,20 @@ editar y ejecutar proyectos Scratch 3.0 (`.sb3`) sin conexion a internet.
 Pensada para alumnos sin conectividad: incluye las bibliotecas de imagenes y
 sonidos empaquetadas.
 
+## Motivacion
+
+Soy desarrollador de software y tambien profesor de Educacion Tecnologica.
+
+Debido a las modificaciones en el diseno curricular del area, con un enfoque
+cada vez mayor en la programacion y el pensamiento computacional, se hizo
+necesario contar con herramientas propias para trabajar estos contenidos con
+los alumnos.
+
+Teniendo en cuenta que en muchas escuelas se carece de conexion a internet
+(o esta es limitada), dio vida a este proyecto: **CodiBloques**, basado en
+Scratch 3.0, totalmente offline y **totalmente gratuito**, pensado para usar
+en el aula sin depender de la red.
+
 ## Desarrollador de esta version
 
 **Juan Pablo Aguero** — https://github.com/jpinformaticaok
